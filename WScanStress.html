@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>WScanStress - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#TOOLS">TOOLS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#cmpVerDesc">cmpVerDesc</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#downloadTo">downloadTo</a></li><li><a href="global.html#ensureAllTools">ensureAllTools</a></li><li><a href="global.html#ensureTool">ensureTool</a></li><li><a href="global.html#exists">exists</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#fetchLatestRelease">fetchLatestRelease</a></li><li><a href="global.html#findCachedExe">findCachedExe</a></li><li><a href="global.html#findFile">findFile</a></li><li><a href="global.html#findLatestCached">findLatestCached</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#installVerDir">installVerDir</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#unzipAndFindExe">unzipAndFindExe</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">WScanStress</h1>
+    
+
+    
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>
+        
+            WScanStress
+        
+        </h2>
+        
+    
+</header>
+
+<article>
+    
+        <div class="container-overview">
+        
+            
+
+    
+
+    <h4 class="name" id="WScanStress"><span class="type-signature type-signature-async">(async) </span>new WScanStress<span class="signature">(fdOut, opt)</span><span class="type-signature"> &rarr; {Promise}</span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li><p>壓力測試</p>
+<p>以k6依使用方注入之情境(請求之動線)，由多位虛擬使用者逐級增加同時在線人數施壓(封閉模型)，量測各請求分組與計時階段之回應時間，並記錄整機與指定行程之處理器、記憶體，結果與文字報告輸出至指定資料夾，僅支援Windows</p>
+<p>情境之格式見src/k6Scenario.js之說明：phases依序執行，requests階段之steps依序執行、同一步之請求並行，可設timer記錄該階段所需之時間；stay階段停留指定秒數並依every週期發出請求；請求以{{變數}}代入各虛擬使用者之session，二進位本體以base64給予(共用或各虛擬使用者各自)</p>
+<p>須登入之系統，由使用方以opt.getSessions為每位虛擬使用者各取得登入狀態(如令牌)，結束時以opt.releaseSessions釋放(如登出)；本套件只負責代入與遮蔽，不涉及任何登入機制。取得session後任何失敗(情境格式、k6執行等)皆會釋放；opt.releaseSessions拋錯或回傳非陣列時視為全部未能釋放。執行中以Ctrl+C等方式強制終止本行程時，session不會釋放，結果資料夾內.manifest.json(含session之值)亦會留存，須自行處理</p>
+<p>k6：預設自GitHub latest release下載最新版並依版本快取於fdTools；無外網時沿用fdTools內已快取之版本(可預先放置)，或以opt.k6Path指定執行檔，以opt.offline不連網。k6腳本不引用網路上之函式庫</p></li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="WScanStress.mjs.html">WScanStress.mjs</a>, <a href="WScanStress.mjs.html#line177">line 177</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-examples">Example</h5>
+    
+    <pre class="prettyprint"><code>import wss from 'w-scan-stress'
+import startDemoServer from './test/tools/demoServer.mjs' //示範用之服務, 實際使用時換成受測之系統
+
+
+async function test() {
+
+    let fdOut = './test/output'
+
+    //示範服務: 帳號 demo 密碼 demo-pass 登入取得令牌, 其餘 API 須帶令牌
+    let demo = await startDemoServer({ port: 8090 })
+    let url = demo.url
+
+    let r = await wss(fdOut, {
+
+        //getSessions, 每位虛擬使用者各自登入, 回傳各自之變數(以 {{token}} 代入請求)
+        getSessions: async (n) => {
+            let ss = []
+            for (let i = 0; i &lt; n; i++) {
+                let res = await fetch(`${url}/api/login`, { method: 'POST', body: JSON.stringify({ account: 'demo', password: 'demo-pass' }) })
+                let j = await res.json()
+                ss.push({ token: j.msg.token })
+            }
+            return ss
+        },
+
+        //releaseSessions, 結束時逐一登出, 回傳未能登出者
+        releaseSessions: async (ss) => {
+            let pending = []
+            for (let s of ss) {
+                let res = await fetch(`${url}/api/logout`, { method: 'POST', headers: { Authorization: `Bearer ${s.token}` } }).catch(() => null)
+                if (!res || res.status !== 200) pending.push(s)
+            }
+            return pending
+        },
+
+        //buildScenario, 每位虛擬使用者每趟之動線
+        buildScenario: () => {
+            let auth = { Authorization: 'Bearer {{token}}' }
+            let ok = { status: [200], json: [{ path: 'state', equals: 'success' }] }
+            return {
+                bodies: { q: Buffer.from('示範之二進位本體').toString('base64') },
+                phases: [
+                    {
+                        //進入頁面: 先取登入者, 再並行取清單與查詢, 記錄所需之時間(enter_page)
+                        kind: 'requests',
+                        name: 'enter',
+                        timer: 'enter_page',
+                        steps: [
+                            [{ name: 'profile', url: `${url}/api/profile`, headers: auth, check: ok }],
+                            [
+                                { name: 'list', url: `${url}/api/list`, headers: auth, check: ok },
+                                { name: 'query', method: 'POST', url: `${url}/api/query`, headers: { ...auth, 'Content-Type': 'application/octet-stream' }, body: { ref: 'q' }, check: ok },
+                            ],
+                        ],
+                    },
+                    {
+                        //停留: 10 秒, 每 2 秒輪詢
+                        kind: 'stay',
+                        name: 'stay',
+                        sec: 10,
+                        ticks: [{ every: 2, reqs: [{ name: 'poll', url: `${url}/api/poll`, headers: auth, check: ok }] }],
+                    },
+                ],
+            }
+        },
+
+        //procPorts, 記錄資源之行程(依埠找監聽之行程)
+        procPorts: { demo: 8090 },
+
+        //labels, 報告中之顯示名稱
+        labels: { enter_page: '進入頁面', profile: '取登入者', list: '取清單', query: '查詢', poll: '輪詢', demo: '示範服務' },
+
+        //mode, 'smoke'為1位虛擬使用者走1趟, 先驗證情境與系統一致; 逐級施壓則改給 levels(如 [10, 25, 50])
+        mode: 'smoke',
+
+    }).finally(() => demo.close()) //結束(含失敗)皆關閉示範服務
+    console.log(r.fdRun)
+    // => 'D:\\...\\test\\output\\2026-10-18_1911_smoke'
+
+    // 產出於fdRun:
+    //   meta.json 本次參數、情境之摘要與測試機
+    //   smoke/(逐級時為各級之vusNNN/) summary.json k6之彙總, sys.json 整機與各行程之資源, k6.log k6之輸出(session之值已遮蔽)
+    //   report.txt 文字報告(各級總覽、計時、各分組p95對照與各級明細)
+    // 另於fdOut/tools存放本次使用之k6(依版本存放)
+
+}
+test()
+    .catch((err) => {
+        console.log(err)
+    })</code></pre>
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>fdOut</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>輸入輸出資料夾路徑字串，每次執行於其下建立&lt;時間&gt;_&lt;標籤&gt;之結果資料夾</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>opt</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>輸入設定物件</p>
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>buildScenario</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">function</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入產生情境之函數，傳入{sessions,nVus}，回傳情境物件(或其Promise)，與opt.scenario擇一給予</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>scenario</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入情境物件，與opt.buildScenario擇一給予</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>getSessions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">function</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入取得session之函數，傳入虛擬使用者數n，回傳n個session物件之陣列(或其Promise)，各session之字串值以{{鍵}}代入請求，預設不使用session</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>releaseSessions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">function</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入釋放session之函數，傳入session陣列，回傳未能釋放者之陣列(或其Promise，全部釋放則為空陣列)，未能釋放者存於opt.fpPending；拋錯或回傳非陣列(含未回傳值)時視為全部未能釋放</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>fpPending</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>''</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入未能釋放之session之存檔路徑字串(含session之值，宜置於不入版控之處)，預設結果資料夾之sessions_pending.json；指定之路徑無法寫入時改存結果資料夾之sessions_pending.json</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>mode</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>'level'</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入模式字串，'level'為逐級，'smoke'為1位虛擬使用者走1趟(驗證情境與系統一致)</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>levels</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>[10,25,50,75,100,150,200]</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入逐級之同時在線人數陣列</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>ramp</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>'30s'</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入每級之爬升時間字串(k6之時間格式，如30s、3m、1m30s)</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>dur</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>'3m'</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入每級之持續時間字串(k6之時間格式，如30s、3m、1m30s)</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>gap</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>30</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入級間休息秒數</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>batchPerHost</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>6</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入同一批請求對同一主機之並行連線數</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>gate</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入安全閘與門檻之覆寫，鍵同config.mjs之GATE{failRate,appErrRate,p95Ms,timeout,nameP95Ms}</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>label</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>''</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入結果資料夾之標籤字串，不得含路徑分隔或檔名禁用字元，預設由模式與級距組成</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>fdTools</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>''</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入k6存放資料夾路徑字串，預設fdOut/tools</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>k6Path</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>''</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入指定之k6執行檔路徑字串，給予則不下載</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>offline</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Boolean</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>false</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入是否不連網(只用fdTools內已快取之k6)布林值</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>procPorts</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>{}</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入記錄資源之行程鍵名對埠號物件(依埠找監聽之行程)，例如{api:8000,auth:8001}</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>labels</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>{}</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入報告中請求分組、計時與行程之顯示名稱物件，例如{login:'登入',api:'主服務'}</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>meta</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+|
+
+<span class="param-type">function</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>{}</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入附加於meta.json之使用方資訊物件，或於取得session與情境後產生之函數(傳入{sessions,scenario}，回傳物件或其Promise)，不得含session之值</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>quiet</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Boolean</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>false</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入是否不將k6之輸出顯示於主控台布林值(一律寫入k6.log)</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>回傳Promise，resolve回傳{fdRun,report,levels,pending}，fdRun為結果資料夾，report為文字報告，levels為各級之{vus,code,gate}，pending為未能釋放之session，reject回傳錯誤訊息</p>
+</div>
+
+
+
+<dl class="param-type">
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise</span>
+
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+        
+        </div>
+    
+
+    
+
+    
+
+    
+    
+    
+
+     
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Oct 18 2026 22:33:18 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
