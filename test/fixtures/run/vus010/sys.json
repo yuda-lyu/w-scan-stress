@@ -1,0 +1,12 @@
+{
+ "sec": 100,
+ "samples": [{ "t": 1, "cpu": 10, "memGb": 20 }, { "t": 2, "cpu": 30, "memGb": 20 }],
+ "procBefore": {
+  "api": { "pid": "1", "memMb": 500, "cpuSec": 10 },
+  "auth": { "pid": "2", "memMb": 100, "cpuSec": 0 }
+ },
+ "procAfter": {
+  "api": { "pid": "1", "memMb": 520, "cpuSec": 20 },
+  "auth": { "pid": "9", "memMb": 110, "cpuSec": 50 }
+ }
+}

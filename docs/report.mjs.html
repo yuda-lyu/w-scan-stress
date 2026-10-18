@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>report.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#TOOLS">TOOLS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#cmpVerDesc">cmpVerDesc</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#downloadTo">downloadTo</a></li><li><a href="global.html#ensureAllTools">ensureAllTools</a></li><li><a href="global.html#ensureTool">ensureTool</a></li><li><a href="global.html#exists">exists</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#fetchLatestRelease">fetchLatestRelease</a></li><li><a href="global.html#findCachedExe">findCachedExe</a></li><li><a href="global.html#findFile">findFile</a></li><li><a href="global.html#findLatestCached">findLatestCached</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#installVerDir">installVerDir</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#unzipAndFindExe">unzipAndFindExe</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">report.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// 文字報告:萃取 k6 之彙總(summary.json)與各級之資源記錄(sys.json), 整理為各級總覽、計時、各請求分組 p95 對照與各級明細;
+// 分組、計時與行程皆取自結果本身, 顯示名稱取 meta.json 之 labels(使用方注入); 給 k6.log 會統計失敗請求(Request Failed)之型態與逐秒分佈
+import fs from 'node:fs'
+import path from 'node:path'
+import { GATE_METRICS } from './config.mjs'
+
+
+const ms = (v) => (v === null || v === undefined) ? '-' : (v >= 1000 ? (v / 1000).toFixed(2) + 's' : Math.round(v) + 'ms')
+const pad = (s, n) => String(s).padEnd(n)
+const padL = (s, n) => String(s).padStart(n)
+const pct = (v) => ((v || 0) * 100).toFixed(2) + '%'
+const g = (m, k, s) => (m[k] &amp;&amp; m[k].values) ? m[k].values[s] : null
+
+
+/**
+ * 讀一級之結果(summary.json、sys.json、k6.log)
+ *
+ * @param {String} fd 輸入該級之資料夾路徑字串
+ * @returns {Object|null} 回傳{fd,data,m,sys,fpLog}，無summary.json或其內容損毀(如k6被中斷而寫入不完整)則回傳null；sys.json損毀視為無資源記錄
+ */
+export function loadLevel(fd) {
+    const fpS = path.join(fd, 'summary.json')
+    if (!fs.existsSync(fpS)) return null
+    let data = null
+    try {
+        data = JSON.parse(fs.readFileSync(fpS, 'utf8'))
+    }
+    catch {
+        return null
+    }
+    if (!data || typeof data !== 'object') return null
+    const fpSys = path.join(fd, 'sys.json')
+    let sys = null
+    try {
+        sys = fs.existsSync(fpSys) ? JSON.parse(fs.readFileSync(fpSys, 'utf8')) : null
+    }
+    catch {
+        sys = null
+    }
+    const fpLog = path.join(fd, 'k6.log')
+    return { fd, data, m: data.metrics || {}, sys, fpLog: fs.existsSync(fpLog) ? fpLog : '' }
+}
+
+
+/**
+ * 彙總中之請求分組名稱(http_req_duration{name:&lt;分組>}，依出現順序)
+ *
+ * @param {Object} m 輸入彙總之metrics物件
+ * @returns {Array} 回傳分組名稱陣列
+ */
+export function namesOf(m) {
+    return Object.keys(m).map((k) => /^http_req_duration\{name:(.+)\}$/.exec(k)).filter(Boolean).map((r) => r[1])
+}
+
+
+/**
+ * 彙總中之計時名稱(有&lt;計時>_ok之Trend)
+ *
+ * @param {Object} m 輸入彙總之metrics物件
+ * @returns {Array} 回傳計時名稱陣列
+ */
+export function timersOf(m) {
+    return Object.keys(m).filter((k) => m[`${k}_ok`] &amp;&amp; m[k].values &amp;&amp; m[k].values.count !== undefined)
+}
+
+
+/**
+ * 彙總中失敗之檢核(遞迴走訪root_group之各group)
+ *
+ * @param {Object} data 輸入彙總物件
+ * @returns {Array} 回傳[{group,name,passes,fails}]，只列fails大於0者
+ */
+export function failedChecks(data) {
+    const out = []
+    const walk = (grp, prefix) => {
+        if (!grp) return
+        const gname = grp.name ? (prefix ? `${prefix}/${grp.name}` : grp.name) : prefix
+        for (const c of grp.checks || []) {
+            if (c.fails > 0) out.push({ group: gname, name: c.name, passes: c.passes, fails: c.fails })
+        }
+        for (const sub of grp.groups || []) walk(sub, gname)
+    }
+    walk(data &amp;&amp; data.root_group, '')
+    return out
+}
+
+
+/**
+ * 由k6.log統計失敗請求之筆數、型態與逐秒分佈
+ *
+ * @param {String} fpLog 輸入k6.log路徑字串
+ * @returns {Object|null} 回傳{n,first,kp,kinds}，無檔案則回傳null
+ */
+export function failStat(fpLog) {
+    if (!fpLog || !fs.existsSync(fpLog)) return null
+    const lines = fs.readFileSync(fpLog, 'utf8').replace(/\r/g, '\n').split('\n')
+    let cur = ''
+    let curVu = ''
+    const kp = {}
+    let n = 0
+    let first = ''
+    const kinds = {}
+    for (const ln of lines) {
+        const mp = /users\s+\[.*?\]\s+(\d+\/\d+) VUs\s+(\S+)\//.exec(ln)
+        if (mp) {
+            curVu = mp[1]
+            cur = mp[2]
+            continue
+        }
+        if (ln.indexOf('Request Failed') >= 0) {
+            n++
+            if (!first) first = cur ? cur + ' (' + curVu + ' VUs)' : '(進度行之前)'
+            kp[cur] = (kp[cur] || 0) + 1
+            //型態: 取 error="…"(內含跳脫之引號), 網址與位址歸一, 只留錯誤本身
+            const mk = /error="((?:[^"\\]|\\.)*)"/.exec(ln)
+            const kind = mk ? mk[1].replace(/\\"[^"\\]*\\"/g, '&lt;網址>').replace(/\d+\.\d+\.\d+\.\d+:\d+/g, '&lt;位址>').slice(0, 140) : '(未知)'
+            kinds[kind] = (kinds[kind] || 0) + 1
+        }
+    }
+    return { n, first, kp, kinds }
+}
+
+
+/**
+ * 行程於該級期間之平均處理器使用率(以單一核心為100%)
+ *
+ * @param {Object} sys 輸入該級之資源記錄
+ * @param {String} k 輸入行程鍵名
+ * @returns {Number|null} 回傳使用率(%)，取不到則回傳null
+ */
+export function cpuOf(sys, k) {
+    if (!sys || !sys.procBefore || !sys.procAfter) return null
+    const a = sys.procBefore[k]
+    const b = sys.procAfter[k]
+    if (!a || !b || a.pid !== b.pid) return null
+    if (!(sys.sec > 0)) return null
+    return Math.round((b.cpuSec - a.cpuSec) / sys.sec * 100)
+}
+
+
+const cpuTxt = (sys, k) => {
+    const v = cpuOf(sys, k)
+    return v === null ? '-' : `${v}%`
+}
+const memTxt = (sys, k) => {
+    if (!sys || !sys.procBefore || !sys.procAfter) return '-'
+    const a = sys.procBefore[k]
+    const b = sys.procAfter[k]
+    if (!a || !b) return '-'
+    return `${a.memMb}→${b.memMb}`
+}
+const sysCpuTxt = (sys) => {
+    if (!sys || !sys.samples || sys.samples.length === 0) return '-'
+    const cs = sys.samples.map((s) => s.cpu)
+    const avg = Math.round(cs.reduce((a, b) => a + b, 0) / cs.length)
+    return `${avg}%/${Math.max(...cs)}%`
+}
+
+
+/**
+ * 產製文字報告
+ *
+ * @param {String} fpIn 輸入結果資料夾(含smoke或vusNNN子資料夾，即WScanStress之fdRun)或單一summary.json之路徑字串
+ * @param {Object} [opt={}] 輸入設定物件
+ * @param {String} [opt.fpLog=''] 輸入fpIn為單一summary.json時之k6.log路徑字串
+ * @param {Object} [opt.labels] 輸入顯示名稱物件，預設取meta.json之labels
+ * @returns {String} 回傳報告文字
+ */
+export function buildReport(fpIn, opt = {}) {
+    const out = []
+    const p = (s = '') => out.push(s)
+    const isFile = fs.statSync(fpIn).isFile()
+    const fpMeta = isFile ? '' : path.join(fpIn, 'meta.json')
+    const meta = fpMeta &amp;&amp; fs.existsSync(fpMeta) ? JSON.parse(fs.readFileSync(fpMeta, 'utf8')) : {}
+    const labels = opt.labels || meta.labels || {}
+    const lb = (k) => labels[k] ? `${k}(${labels[k]})` : k
+    const procs = Object.keys(meta.procPorts || {})
+    const order = meta.scenario &amp;&amp; meta.scenario.names ? meta.scenario.names : []
+    const sortNames = (ns) => [...new Set([...order.filter((n) => ns.includes(n)), ...ns])] //依情境之順序, 其後為彙總中另有者
+
+    //detail, 一級之明細
+    const detail = (L, title) => {
+        const m = L.m
+        p(`--- ${title} ---`)
+        p('  請求總數      : ' + (g(m, 'http_reqs', 'count') || 0) + '  ( ' + (g(m, 'http_reqs', 'rate') || 0).toFixed(1) + ' req/s )')
+        p('  完成趟數      : ' + (g(m, 'iterations', 'count') || 0) + '  ( ' + (g(m, 'iterations', 'rate') || 0).toFixed(3) + ' 趟/秒 )')
+        p('  失敗率        : ' + pct(g(m, 'http_req_failed', 'rate')) + '   內容檢核失敗: ' + pct(g(m, 'app_errors', 'rate')))
+        p('  checks 通過率 : ' + pct(g(m, 'checks', 'rate')) + ' ( ' + (g(m, 'checks', 'passes') || 0) + ' / ' + ((g(m, 'checks', 'passes') || 0) + (g(m, 'checks', 'fails') || 0)) + ' )')
+        p('  最高同時VU    : ' + (g(m, 'vus_max', 'max') || g(m, 'vus', 'max') || 0))
+        p('  收到資料      : ' + ((g(m, 'data_received', 'count') || 0) / 1024 / 1024).toFixed(1) + ' MB')
+        p('  整體延遲      : med ' + ms(g(m, 'http_req_duration', 'med')) + '  p90 ' + ms(g(m, 'http_req_duration', 'p(90)')) + '  p95 ' + ms(g(m, 'http_req_duration', 'p(95)')) + '  max ' + ms(g(m, 'http_req_duration', 'max')))
+        for (const t of timersOf(m)) {
+            p(`  計時 ${pad(lb(t), 10)}: ` + g(m, t, 'count') + ' 次, 全部成功 ' + pct(g(m, `${t}_ok`, 'rate')) + '; med ' + ms(g(m, t, 'med')) + '  p90 ' + ms(g(m, t, 'p(90)')) + '  p95 ' + ms(g(m, t, 'p(95)')) + '  max ' + ms(g(m, t, 'max')))
+        }
+        if (L.sys) {
+            p('  整機CPU 平均/最高: ' + sysCpuTxt(L.sys) + (procs.length ? '   各行程CPU(單核%): ' + procs.map((k) => `${lb(k)} ${cpuTxt(L.sys, k)}`).join('、') : ''))
+            if (procs.length) p('  各行程記憶體(MB, 前→後): ' + procs.map((k) => `${lb(k)} ${memTxt(L.sys, k)}`).join('、'))
+        }
+        p('')
+        p('  ' + pad('分組', 18) + padL('次數', 8) + padL('avg', 9) + padL('med', 9) + padL('p90', 9) + padL('p95', 9) + padL('max', 9) + '   門檻')
+        for (const n of sortNames(namesOf(m))) {
+            const v = m[`http_req_duration{name:${n}}`]
+            if (!v.values || !v.values.count) {
+                p('  ' + pad(n, 18) + padL('(本次未發出)', 30))
+                continue
+            }
+            const th = v.thresholds ? Object.entries(v.thresholds)[0] : null
+            const ok = th ? `${th[0]} ${th[1].ok ? '✓' : '✗ 超標'}` : ''
+            p('  ' + pad(n, 18) + padL(v.values.count, 8) + padL(ms(v.values.avg), 9) + padL(ms(v.values.med), 9) + padL(ms(v.values['p(90)']), 9) + padL(ms(v.values['p(95)']), 9) + padL(ms(v.values.max), 9) + '   ' + ok + (labels[n] ? `  ${labels[n]}` : ''))
+        }
+        p('')
+        p('  安全閘:')
+        for (const k of GATE_METRICS) {
+            const v = m[k]
+            if (!v || !v.thresholds) continue
+            for (const [t, r] of Object.entries(v.thresholds)) {
+                p('    ' + pad(k, 20) + pad(t, 14) + (r.ok ? '✓ 未觸發' : '✗ 觸發(該級已中止)'))
+            }
+        }
+        const fcs = failedChecks(L.data)
+        if (fcs.length) {
+            p('  失敗之檢核:')
+            for (const c of fcs) {
+                p(`    ${c.group ? c.group + ' / ' : ''}${c.name}: 失敗 ${c.fails}、成功 ${c.passes}`)
+            }
+        }
+        const fs1 = failStat(L.fpLog)
+        if (fs1) {
+            p('  失敗請求(k6 log): ' + fs1.n + (fs1.n > 0 ? '  首次於 ' + fs1.first : ''))
+            if (fs1.n > 0) {
+                for (const [k, v] of Object.entries(fs1.kinds)) {
+                    p('    型態 ' + pad(v + ' 筆', 8) + k)
+                }
+                p('    逐秒分佈(有失敗之秒; 時點取最近一次進度行之測試時間, 為約略值):')
+                for (const [k, v] of Object.entries(fs1.kp)) {
+                    p('      ' + pad(k, 12) + padL(v, 5) + ' 筆')
+                }
+            }
+        }
+        p('')
+    }
+
+    if (isFile) {
+        //單一 summary.json
+        const data = JSON.parse(fs.readFileSync(fpIn, 'utf8'))
+        p('檔案: ' + fpIn)
+        p()
+        detail({ data, m: data.metrics || {}, sys: null, fpLog: opt.fpLog || '' }, '結果')
+        return out.join('\n')
+    }
+
+    //結果資料夾
+    const lvNum = (name) => name === 'smoke' ? 0 : Number(name.slice(3))
+    const subs = fs.readdirSync(fpIn).filter((x) => /^(smoke|vus\d+)$/.test(x)).sort((a, b) => lvNum(a) - lvNum(b)) //依人數(數值)排序, 非字串順序(vus1000 在 vus200 之後)
+    const all = subs.map((s) => ({ name: s, L: loadLevel(path.join(fpIn, s)) }))
+    const Ls = all.filter((x) => x.L)
+    const lab = (x) => x.name === 'smoke' ? 'smoke' : `${Number(x.name.slice(3))}人`
+
+    p('資料夾: ' + fpIn)
+    if (meta.time) {
+        p(meta.mode === 'smoke' ? `參數: mode=smoke 1 位虛擬使用者走 1 趟; k6 ${meta.k6}` : `參數: mode=${meta.mode} 每級爬升 ${meta.ramp} + 持續 ${meta.dur}; 級間休息 ${meta.gap}s; k6 ${meta.k6}`)
+        if (meta.scenario) p(`情境: ${meta.scenario.phases.map((ph) => `${ph.kind}${ph.name ? `(${ph.name})` : ''}${ph.nReqs ? ` ${ph.nReqs} 個請求` : ''}`).join(' → ')}`)
+        p(`測試機: ${meta.machine &amp;&amp; meta.machine.cpu}, ${meta.machine &amp;&amp; meta.machine.cores} 執行緒, ${meta.machine &amp;&amp; meta.machine.memGb} GB, ${meta.machine &amp;&amp; meta.machine.os}`)
+    }
+    p()
+    for (const x of all.filter((y) => !y.L)) {
+        p(`(${lab(x)} 無有效之彙總(summary.json 不存在或損毀), 未列入下列各表, 請查看 ${x.name}/k6.log)`)
+    }
+    if (Ls.length === 0) {
+        p('(此資料夾內無任何一級之彙總(summary.json), 請查看各級資料夾內之 k6.log)')
+        p()
+    }
+
+    p('=== 各級總覽 ===')
+    p(pad('在線', 7) + padL('req/s', 8) + padL('完成趟', 8) + padL('失敗率', 9) + padL('內容錯', 9) + padL('checks', 9) + padL('整體p95', 9) + padL('max', 9) + padL('整機CPU均/高', 14) + procs.map((k) => padL(k, 10)).join(''))
+    for (const x of Ls) {
+        const m = x.L.m
+        p(pad(lab(x), 7) + padL((g(m, 'http_reqs', 'rate') || 0).toFixed(1), 8) + padL(g(m, 'iterations', 'count') || 0, 8) + padL(pct(g(m, 'http_req_failed', 'rate')), 9) + padL(pct(g(m, 'app_errors', 'rate')), 9) + padL(pct(g(m, 'checks', 'rate')), 9) + padL(ms(g(m, 'http_req_duration', 'p(95)')), 9) + padL(ms(g(m, 'http_req_duration', 'max')), 9) + padL(sysCpuTxt(x.L.sys), 14) + procs.map((k) => padL(cpuTxt(x.L.sys, k), 10)).join(''))
+    }
+    if (procs.length) p('(各行程 CPU 為該級期間之平均, 以單核為 100%)')
+    p()
+
+    const timers = [...new Set(Ls.flatMap((x) => timersOf(x.L.m)))]
+    for (const t of timers) {
+        p(`=== 計時 ${lb(t)} ===`)
+        p(pad('在線', 7) + padL('次數', 8) + padL('全部成功', 10) + padL('med', 9) + padL('p90', 9) + padL('p95', 9) + padL('max', 9))
+        for (const x of Ls) {
+            const m = x.L.m
+            if (!m[t]) continue
+            p(pad(lab(x), 7) + padL(g(m, t, 'count'), 8) + padL(pct(g(m, `${t}_ok`, 'rate')), 10) + padL(ms(g(m, t, 'med')), 9) + padL(ms(g(m, t, 'p(90)')), 9) + padL(ms(g(m, t, 'p(95)')), 9) + padL(ms(g(m, t, 'max')), 9))
+        }
+        p()
+    }
+
+    const names = sortNames([...new Set(Ls.flatMap((x) => namesOf(x.L.m)))])
+    const nameP95 = meta.gate &amp;&amp; typeof meta.gate.nameP95Ms === 'number' ? meta.gate.nameP95Ms : 2000 //0 為有效門檻, 不得當成缺值
+    p(`=== 各分組 p95(各級; ✗ 為超過 ${ms(nameP95)}) ===`)
+    p(pad('分組', 18) + Ls.map((x) => padL(lab(x), 10)).join(''))
+    for (const n of names) {
+        const k = `http_req_duration{name:${n}}`
+        const cells = Ls.map((x) => {
+            const v = x.L.m[k] &amp;&amp; x.L.m[k].values
+            if (!v || !v.count) return padL('-', 10)
+            return padL(ms(v['p(95)']) + (v['p(95)'] > nameP95 ? '✗' : ''), 10)
+        })
+        p(pad(n, 18) + cells.join('') + (labels[n] ? `   ${labels[n]}` : ''))
+    }
+    p()
+
+    p('=== 各級明細 ===')
+    for (const x of Ls) {
+        detail(x.L, lab(x))
+    }
+    return out.join('\n')
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Oct 18 2026 22:33:18 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "time": "2026-10-18T11:11:00.000Z",
+  "mode": "level",
+  "levels": [10],
+  "ramp": "30s",
+  "dur": "3m",
+  "gap": 30,
+  "batchPerHost": 6,
+  "gate": { "failRate": 0.05, "appErrRate": 0.05, "p95Ms": 8000, "timeout": "60s", "nameP95Ms": 2000 },
+  "label": "10",
+  "scenario": {
+    "phases": [
+      { "kind": "requests", "name": "enter", "timer": "enter_page", "nReqs": 3 },
+      { "kind": "stay", "name": "stay", "timer": "", "nReqs": 1 }
+    ],
+    "names": ["profile", "list", "query", "poll"],
+    "timers": ["enter_page"]
+  },
+  "nSessions": 10,
+  "procPorts": { "api": 8000, "auth": 8001 },
+  "labels": { "enter_page": "進入頁面", "list": "取清單", "api": "主服務" },
+  "k6": "k6.exe v2.3.0",
+  "node": "v24.19.0",
+  "machine": { "cpu": "Test CPU", "cores": 8, "memGb": 16, "os": "Windows_NT 10.0.26300" },
+  "nReleased": 10
+}

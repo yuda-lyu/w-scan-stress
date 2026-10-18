@@ -1,0 +1,376 @@
+// WScanStress:壓力測試之函式化入口(作法比照 w-scan-vulnerability、w-scan-dep)。
+// 本套件不含任何特定系統之請求: 使用方以依賴注入提供情境(scenario, 請求之動線)與 session(各虛擬使用者之登入狀態),
+// 本套件負責 k6 之取得、逐級施壓、安全閘、資源記錄、遮蔽與報告。
+// 流程:
+//   0) 檢核 opt(須給情境; 格式、數值有誤即拋錯, 不下載 k6、不取 session、不建立結果資料夾)
+//   1) 取得 k6(自 GitHub 下載最新版並依版本快取; 無外網時沿用已快取之版本, 或使用指定之執行檔), 並確認可執行
+//   2) 以 opt.getSessions 取得各虛擬使用者之 session, 以 opt.buildScenario(或 opt.scenario)取得情境並檢查格式, 寫入清單檔(結束即刪)
+//   3) 依同時在線人數逐級執行 k6, 每級記錄整機與指定行程之處理器、記憶體; 任一級觸發安全閘即不再加壓
+//   4) 以 opt.releaseSessions 釋放 session(如登出; 取得 session 後之任何失敗亦釋放), 遮蔽日誌中 session 之值, 產製文字報告
+// 結果落 fdOut/<時間>_<標籤>/: meta.json、各級 vusNNN/(或 smoke/)之 summary.json、sys.json、k6.log, 以及 report.txt。
+// 僅支援 Windows(k6 之 Windows 版; 行程之資源以 netstat、tasklist 取得)。
+import fs from 'node:fs'
+import os from 'node:os'
+import { join, resolve, dirname } from 'node:path'
+import { TOOLS, normOpt } from './config.mjs'
+import { ensureAllTools } from './download.mjs'
+import { validateScenario, summarizeScenario, collectSecrets, maskDeep, maskFile, releaseAll } from './scenario.mjs'
+import { locateK6Script, k6Version, runK6, gateTriggered } from './k6.mjs'
+import { snapProcs, startSampler } from './procStat.mjs'
+import { buildReport } from './report.mjs'
+
+
+/**
+ * 存未能釋放之session(含session之值)，依序嘗試各路徑，第一個成功者即止
+ *
+ * @param {Array} pending 輸入未能釋放之session陣列
+ * @param {Array} fps 輸入候選之存檔路徑字串陣列
+ * @param {Function} log 輸入訊息輸出函數
+ * @returns {String} 回傳實際存檔之路徑字串，皆失敗則回傳''
+ */
+const savePending = (pending, fps, log) => {
+    for (const fp of fps) {
+        try {
+            fs.mkdirSync(dirname(fp), { recursive: true })
+            fs.writeFileSync(fp, JSON.stringify(pending), 'utf8')
+            log(`未能釋放 ${pending.length} 個, 已存 ${fp}, 請另行處理後刪除`)
+            return fp
+        }
+        catch (err) {
+            log(`未能釋放之 session 無法存於 ${fp}: ${err.message}`)
+        }
+    }
+    log('未能釋放之 session 皆無法存檔: 流程成功時可由回傳值之 pending 取得, 流程失敗(reject)時即遺失, 請自行處理')
+    return ''
+}
+
+
+/**
+ * 壓力測試
+ *
+ * 以k6依使用方注入之情境(請求之動線)，由多位虛擬使用者逐級增加同時在線人數施壓(封閉模型)，量測各請求分組與計時階段之回應時間，並記錄整機與指定行程之處理器、記憶體，結果與文字報告輸出至指定資料夾，僅支援Windows
+ *
+ * 情境之格式見src/k6Scenario.js之說明：phases依序執行，requests階段之steps依序執行、同一步之請求並行，可設timer記錄該階段所需之時間；stay階段停留指定秒數並依every週期發出請求；請求以{{變數}}代入各虛擬使用者之session，二進位本體以base64給予(共用或各虛擬使用者各自)
+ *
+ * 須登入之系統，由使用方以opt.getSessions為每位虛擬使用者各取得登入狀態(如令牌)，結束時以opt.releaseSessions釋放(如登出)；本套件只負責代入與遮蔽，不涉及任何登入機制。取得session後任何失敗(情境格式、k6執行等)皆會釋放；opt.releaseSessions拋錯或回傳非陣列時視為全部未能釋放。執行中以Ctrl+C等方式強制終止本行程時，session不會釋放，結果資料夾內.manifest.json(含session之值)亦會留存，須自行處理
+ *
+ * k6：預設自GitHub latest release下載最新版並依版本快取於fdTools；無外網時沿用fdTools內已快取之版本(可預先放置)，或以opt.k6Path指定執行檔，以opt.offline不連網。k6腳本不引用網路上之函式庫
+ *
+ * @class
+ * @param {String} fdOut 輸入輸出資料夾路徑字串，每次執行於其下建立<時間>_<標籤>之結果資料夾
+ * @param {Object} opt 輸入設定物件
+ * @param {Function} [opt.buildScenario] 輸入產生情境之函數，傳入{sessions,nVus}，回傳情境物件(或其Promise)，與opt.scenario擇一給予
+ * @param {Object} [opt.scenario] 輸入情境物件，與opt.buildScenario擇一給予
+ * @param {Function} [opt.getSessions] 輸入取得session之函數，傳入虛擬使用者數n，回傳n個session物件之陣列(或其Promise)，各session之字串值以{{鍵}}代入請求，預設不使用session
+ * @param {Function} [opt.releaseSessions] 輸入釋放session之函數，傳入session陣列，回傳未能釋放者之陣列(或其Promise，全部釋放則為空陣列)，未能釋放者存於opt.fpPending；拋錯或回傳非陣列(含未回傳值)時視為全部未能釋放
+ * @param {String} [opt.fpPending=''] 輸入未能釋放之session之存檔路徑字串(含session之值，宜置於不入版控之處)，預設結果資料夾之sessions_pending.json；指定之路徑無法寫入時改存結果資料夾之sessions_pending.json
+ * @param {String} [opt.mode='level'] 輸入模式字串，'level'為逐級，'smoke'為1位虛擬使用者走1趟(驗證情境與系統一致)
+ * @param {Array} [opt.levels=[10,25,50,75,100,150,200]] 輸入逐級之同時在線人數陣列
+ * @param {String} [opt.ramp='30s'] 輸入每級之爬升時間字串(k6之時間格式，如30s、3m、1m30s)
+ * @param {String} [opt.dur='3m'] 輸入每級之持續時間字串(k6之時間格式，如30s、3m、1m30s)
+ * @param {Number} [opt.gap=30] 輸入級間休息秒數
+ * @param {Number} [opt.batchPerHost=6] 輸入同一批請求對同一主機之並行連線數
+ * @param {Object} [opt.gate] 輸入安全閘與門檻之覆寫，鍵同config.mjs之GATE{failRate,appErrRate,p95Ms,timeout,nameP95Ms}
+ * @param {String} [opt.label=''] 輸入結果資料夾之標籤字串，不得含路徑分隔或檔名禁用字元，預設由模式與級距組成
+ * @param {String} [opt.fdTools=''] 輸入k6存放資料夾路徑字串，預設fdOut/tools
+ * @param {String} [opt.k6Path=''] 輸入指定之k6執行檔路徑字串，給予則不下載
+ * @param {Boolean} [opt.offline=false] 輸入是否不連網(只用fdTools內已快取之k6)布林值
+ * @param {Object} [opt.procPorts={}] 輸入記錄資源之行程鍵名對埠號物件(依埠找監聽之行程)，例如{api:8000,auth:8001}
+ * @param {Object} [opt.labels={}] 輸入報告中請求分組、計時與行程之顯示名稱物件，例如{login:'登入',api:'主服務'}
+ * @param {Object|Function} [opt.meta={}] 輸入附加於meta.json之使用方資訊物件，或於取得session與情境後產生之函數(傳入{sessions,scenario}，回傳物件或其Promise)，不得含session之值
+ * @param {Boolean} [opt.quiet=false] 輸入是否不將k6之輸出顯示於主控台布林值(一律寫入k6.log)
+ * @returns {Promise} 回傳Promise，resolve回傳{fdRun,report,levels,pending}，fdRun為結果資料夾，report為文字報告，levels為各級之{vus,code,gate}，pending為未能釋放之session，reject回傳錯誤訊息
+ * @example
+ *
+ * import wss from 'w-scan-stress'
+ * import startDemoServer from './test/tools/demoServer.mjs' //示範用之服務, 實際使用時換成受測之系統
+ *
+ *
+ * async function test() {
+ *
+ *     let fdOut = './test/output'
+ *
+ *     //示範服務: 帳號 demo 密碼 demo-pass 登入取得令牌, 其餘 API 須帶令牌
+ *     let demo = await startDemoServer({ port: 8090 })
+ *     let url = demo.url
+ *
+ *     let r = await wss(fdOut, {
+ *
+ *         //getSessions, 每位虛擬使用者各自登入, 回傳各自之變數(以 {{token}} 代入請求)
+ *         getSessions: async (n) => {
+ *             let ss = []
+ *             for (let i = 0; i < n; i++) {
+ *                 let res = await fetch(`${url}/api/login`, { method: 'POST', body: JSON.stringify({ account: 'demo', password: 'demo-pass' }) })
+ *                 let j = await res.json()
+ *                 ss.push({ token: j.msg.token })
+ *             }
+ *             return ss
+ *         },
+ *
+ *         //releaseSessions, 結束時逐一登出, 回傳未能登出者
+ *         releaseSessions: async (ss) => {
+ *             let pending = []
+ *             for (let s of ss) {
+ *                 let res = await fetch(`${url}/api/logout`, { method: 'POST', headers: { Authorization: `Bearer ${s.token}` } }).catch(() => null)
+ *                 if (!res || res.status !== 200) pending.push(s)
+ *             }
+ *             return pending
+ *         },
+ *
+ *         //buildScenario, 每位虛擬使用者每趟之動線
+ *         buildScenario: () => {
+ *             let auth = { Authorization: 'Bearer {{token}}' }
+ *             let ok = { status: [200], json: [{ path: 'state', equals: 'success' }] }
+ *             return {
+ *                 bodies: { q: Buffer.from('示範之二進位本體').toString('base64') },
+ *                 phases: [
+ *                     {
+ *                         //進入頁面: 先取登入者, 再並行取清單與查詢, 記錄所需之時間(enter_page)
+ *                         kind: 'requests',
+ *                         name: 'enter',
+ *                         timer: 'enter_page',
+ *                         steps: [
+ *                             [{ name: 'profile', url: `${url}/api/profile`, headers: auth, check: ok }],
+ *                             [
+ *                                 { name: 'list', url: `${url}/api/list`, headers: auth, check: ok },
+ *                                 { name: 'query', method: 'POST', url: `${url}/api/query`, headers: { ...auth, 'Content-Type': 'application/octet-stream' }, body: { ref: 'q' }, check: ok },
+ *                             ],
+ *                         ],
+ *                     },
+ *                     {
+ *                         //停留: 10 秒, 每 2 秒輪詢
+ *                         kind: 'stay',
+ *                         name: 'stay',
+ *                         sec: 10,
+ *                         ticks: [{ every: 2, reqs: [{ name: 'poll', url: `${url}/api/poll`, headers: auth, check: ok }] }],
+ *                     },
+ *                 ],
+ *             }
+ *         },
+ *
+ *         //procPorts, 記錄資源之行程(依埠找監聽之行程)
+ *         procPorts: { demo: 8090 },
+ *
+ *         //labels, 報告中之顯示名稱
+ *         labels: { enter_page: '進入頁面', profile: '取登入者', list: '取清單', query: '查詢', poll: '輪詢', demo: '示範服務' },
+ *
+ *         //mode, 'smoke'為1位虛擬使用者走1趟, 先驗證情境與系統一致; 逐級施壓則改給 levels(如 [10, 25, 50])
+ *         mode: 'smoke',
+ *
+ *     }).finally(() => demo.close()) //結束(含失敗)皆關閉示範服務
+ *     console.log(r.fdRun)
+ *     // => 'D:\\...\\test\\output\\2026-10-18_1911_smoke'
+ *
+ *     // 產出於fdRun:
+ *     //   meta.json 本次參數、情境之摘要與測試機
+ *     //   smoke/(逐級時為各級之vusNNN/) summary.json k6之彙總, sys.json 整機與各行程之資源, k6.log k6之輸出(session之值已遮蔽)
+ *     //   report.txt 文字報告(各級總覽、計時、各分組p95對照與各級明細)
+ *     // 另於fdOut/tools存放本次使用之k6(依版本存放)
+ *
+ * }
+ * test()
+ *     .catch((err) => {
+ *         console.log(err)
+ *     })
+ *
+ */
+async function WScanStress(fdOut, opt = {}) {
+    const log = (m) => console.log(m)
+
+    //0) opt, 固定之情境先檢查格式(不下載 k6、不取 session)
+    if (typeof opt.buildScenario !== 'function' && !opt.scenario) throw new Error('須給情境(opt.buildScenario 或 opt.scenario)')
+    for (const k of ['buildScenario', 'getSessions', 'releaseSessions']) {
+        if (opt[k] !== undefined && typeof opt[k] !== 'function') throw new Error(`opt.${k} 須為函數`)
+    }
+    if (typeof opt.buildScenario !== 'function') validateScenario(opt.scenario)
+    const { mode, levels, ramp, dur, gap, batchPerHost, gate, label, procPorts } = normOpt(opt)
+    const outDir = resolve(fdOut)
+    const toolsDir = opt.fdTools ? resolve(opt.fdTools) : join(outDir, 'tools')
+    const quiet = opt.quiet === true
+
+    //結果資料夾名稱含時間避免覆蓋
+    const d = new Date()
+    const p2 = (n) => String(n).padStart(2, '0')
+    const ts = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}`
+
+    log('════════════════════════════════════════════')
+    log(' WScanStress 壓力測試')
+    log(`  ${mode === 'smoke' ? '煙霧測試(1 位虛擬使用者走 1 趟)' : `逐級 ${levels.join(', ')} 人, 每級爬升 ${ramp}＋持續 ${dur}`}`)
+    log('════════════════════════════════════════════')
+
+    //1) k6, 取得後確認可執行(不可執行即於取 session 前拋錯)
+    let k6Exe = opt.k6Path ? resolve(opt.k6Path) : ''
+    if (k6Exe) {
+        if (!fs.existsSync(k6Exe)) throw new Error(`指定之 k6 不存在:${k6Exe}`)
+    }
+    else {
+        const tools = await ensureAllTools(TOOLS, { toolsDir, offline: opt.offline === true, log })
+        k6Exe = tools.k6.exePath
+    }
+    const k6Ver = k6Version(k6Exe)
+    const fpScript = locateK6Script()
+
+    //結果資料夾於取 session 之前以非遞迴 mkdir 原子保留(同分鐘同標籤之並行呼叫不會共用同一夾), 同標籤者加序號;
+    //建立失敗發生在取 session 之前, 不會留下未釋放之 session
+    fs.mkdirSync(outDir, { recursive: true })
+    let fdRun = ''
+    for (let i = 1; !fdRun; i++) {
+        const fd = join(outDir, i === 1 ? `${ts}_${label}` : `${ts}_${label}_${i}`)
+        try {
+            fs.mkdirSync(fd)
+            fdRun = fd
+        }
+        catch (err) {
+            if (err.code !== 'EEXIST') throw err
+        }
+    }
+    log(`  結果資料夾：${fdRun}`)
+
+    //2) session 與情境, 寫入清單檔(含 session 之值, 結束即刪)
+    const nVus = Math.max(...levels)
+    let sessions = null
+    try {
+        sessions = typeof opt.getSessions === 'function' ? await opt.getSessions(nVus) : [{}]
+        if (!Array.isArray(sessions) || sessions.length === 0) throw new Error('opt.getSessions 須回傳非空陣列')
+        if (Array.from(sessions).some((s) => !s || typeof s !== 'object' || Array.isArray(s))) throw new Error('opt.getSessions 須回傳 session 物件之陣列')
+    }
+    catch (err) {
+        try {
+            fs.rmdirSync(fdRun) //尚未寫入任何檔案, 移除空的結果資料夾
+        }
+        catch {
+            //非空或已被占用則保留
+        }
+        throw err
+    }
+    const secrets = collectSecrets(sessions)
+    const fpMf = join(fdRun, '.manifest.json')
+    const fpMeta = join(fdRun, 'meta.json')
+    const rLevels = []
+    let pending = []
+    let meta = null
+    try {
+        const sc = validateScenario(typeof opt.buildScenario === 'function' ? await opt.buildScenario({ sessions, nVus }) : opt.scenario)
+        fs.writeFileSync(fpMf, JSON.stringify({ sessions, scenario: sc }), 'utf8')
+
+        //meta(不含 session 之值), 使用方之資訊可於取得 session 與情境後產生
+        const metaUser = typeof opt.meta === 'function' ? await opt.meta({ sessions, scenario: sc }) : opt.meta
+        meta = {
+            time: d.toISOString(),
+            mode,
+            levels,
+            ramp,
+            dur,
+            gap,
+            batchPerHost,
+            gate,
+            label,
+            scenario: summarizeScenario(sc),
+            nSessions: sessions.length,
+            procPorts,
+            labels: opt.labels || {},
+            k6: k6Ver,
+            node: process.version,
+            machine: { cpu: os.cpus()[0].model, cores: os.cpus().length, memGb: Math.round(os.totalmem() / 1024 / 1024 / 1024), os: `${os.type()} ${os.release()}` },
+            ...(metaUser || {}),
+        }
+        fs.writeFileSync(fpMeta, JSON.stringify(maskDeep(meta, secrets), null, 2), 'utf8')
+
+        //3) 逐級
+        for (let i = 0; i < levels.length; i++) {
+            const vus = levels[i]
+            const fdLevel = join(fdRun, mode === 'smoke' ? 'smoke' : `vus${String(vus).padStart(3, '0')}`)
+            fs.mkdirSync(fdLevel, { recursive: true })
+            const fpSummary = join(fdLevel, 'summary.json')
+            log(`\n===== 第 ${i + 1} 級: 同時在線 ${vus} 人 =====\n`)
+
+            const procBefore = snapProcs(procPorts)
+            const stopSampler = startSampler()
+            const t0 = Date.now()
+            let code = null
+            let samples = []
+            const fpLog = join(fdLevel, 'k6.log')
+            try {
+                code = await runK6(k6Exe, fpScript, {
+                    MANIFEST: fpMf,
+                    MODE: mode,
+                    VUS: String(vus),
+                    RAMP: ramp,
+                    DUR: dur,
+                    BATCH_PER_HOST: String(batchPerHost),
+                    GATE_FAIL: String(gate.failRate),
+                    GATE_APP: String(gate.appErrRate),
+                    GATE_P95_MS: String(gate.p95Ms),
+                    NAME_P95_MS: String(gate.nameP95Ms),
+                    TIMEOUT: gate.timeout,
+                    OUT: fpSummary.replace(/\\/g, '/'),
+                }, fdLevel, quiet)
+            }
+            finally {
+                samples = stopSampler()
+                //k6.log 於成功與失敗(runK6 reject)之路徑皆須遮蔽: 失敗時已落盤之部分日誌亦可能含 session 之值
+                try {
+                    maskFile(fpLog, secrets)
+                }
+                catch (err) {
+                    log(`k6.log 遮蔽失敗(${fpLog}), 其內容可能含 session 之值: ${err.message}`)
+                }
+            }
+            const sec = (Date.now() - t0) / 1000
+            const procAfter = snapProcs(procPorts)
+            fs.writeFileSync(join(fdLevel, 'sys.json'), JSON.stringify({ sec, samples, procBefore, procAfter }, null, 1), 'utf8')
+            const gt = gateTriggered(fpSummary)
+            rLevels.push({ vus, code, gate: gt })
+            log(`\nk6 結束 exit=${code}(0=全部門檻通過, 99=有門檻未過或被安全閘中止)`)
+
+            if (gt) {
+                log('安全閘觸發(或無結果), 不再往上加壓')
+                break
+            }
+            if (i < levels.length - 1) {
+                log(`休息 ${gap} 秒, 待各服務回穩`)
+                await new Promise((resolve) => setTimeout(resolve, gap * 1000))
+            }
+        }
+    }
+    finally {
+        //4) 刪清單檔, 釋放 session; 未能釋放者留檔(含 session 之值), 須另行處理
+        //   各項獨立進行: 任一項失敗只記錄, 不阻斷其餘項目(尤其是釋放 session), 也不遮蓋 try 區塊之原始錯誤
+        try {
+            fs.rmSync(fpMf, { force: true })
+        }
+        catch (err) {
+            log(`無法刪除清單檔 ${fpMf}(含 session 之值), 請手動刪除: ${err.message}`)
+        }
+        if (typeof opt.releaseSessions === 'function') {
+            pending = await releaseAll(opt.releaseSessions, sessions, secrets, log)
+            log(`已釋放 ${Math.max(0, sessions.length - pending.length)}/${sessions.length} 個 session`)
+            if (pending.length > 0) {
+                //opt.fpPending 無法寫入時改存結果資料夾內, 避免 session 遺失
+                savePending(pending, [opt.fpPending ? resolve(opt.fpPending) : '', join(fdRun, 'sessions_pending.json')].filter((fp, i, a) => fp && a.indexOf(fp) === i), log)
+            }
+        }
+        if (meta) {
+            try {
+                meta.nReleased = typeof opt.releaseSessions === 'function' ? Math.max(0, sessions.length - pending.length) : 0
+                fs.writeFileSync(fpMeta, JSON.stringify(maskDeep(meta, secrets), null, 2), 'utf8')
+            }
+            catch (err) {
+                log(`無法更新 ${fpMeta}: ${err.message}`)
+            }
+        }
+    }
+
+    //報告
+    const report = buildReport(fdRun)
+    fs.writeFileSync(join(fdRun, 'report.txt'), report, 'utf8')
+    log(report)
+    log('════════════════════════════════════════════')
+    log(` 完成! 報告: ${join(fdRun, 'report.txt')}`)
+    log('════════════════════════════════════════════')
+
+    return { fdRun, report, levels: rLevels, pending }
+}
+
+
+export default WScanStress

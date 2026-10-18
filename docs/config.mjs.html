@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>config.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#TOOLS">TOOLS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#cmpVerDesc">cmpVerDesc</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#downloadTo">downloadTo</a></li><li><a href="global.html#ensureAllTools">ensureAllTools</a></li><li><a href="global.html#ensureTool">ensureTool</a></li><li><a href="global.html#exists">exists</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#fetchLatestRelease">fetchLatestRelease</a></li><li><a href="global.html#findCachedExe">findCachedExe</a></li><li><a href="global.html#findFile">findFile</a></li><li><a href="global.html#findLatestCached">findLatestCached</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#installVerDir">installVerDir</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#unzipAndFindExe">unzipAndFindExe</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">config.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// 全域設定:壓測工具(k6)之下載定義、預設參數與安全閘
+// 作法比照 w-scan-vulnerability、w-scan-dep:工具一律取執行當下之最新版,依版本快取於 fdTools(預設 fdOut/tools)。
+
+
+/**
+ * 壓測工具下載定義，自GitHub latest release取得Windows免安裝版(zip)
+ *
+ * 各項為物件：key為工具鍵名，repo為GitHub儲存庫，kind為資產種類('zip'需解壓後取exe)，matchAsset為判斷資產檔名之函數，exeName為執行檔名稱
+ *
+ * @type {Array}
+ */
+export const TOOLS = [
+    {
+        key: 'k6',
+        repo: 'grafana/k6',
+        kind: 'zip',
+        // k6-v2.2.0-windows-amd64.zip
+        matchAsset: (n) => /^k6-v[\d.]+-windows-amd64\.zip$/.test(n),
+        exeName: 'k6.exe',
+    },
+]
+
+
+/**
+ * 預設參數
+ *
+ * levels為逐級之同時在線人數(虛擬使用者數)，ramp為每級之爬升時間，dur為每級之持續時間(皆為k6之時間格式)，gap為級間休息秒數，batchPerHost為同一批請求對同一主機之並行連線數(同瀏覽器)
+ *
+ * @type {Object}
+ */
+export const DEFAULTS = {
+    levels: [10, 25, 50, 75, 100, 150, 200],
+    ramp: '30s',
+    dur: '3m',
+    gap: 30,
+    batchPerHost: 6,
+}
+
+
+/**
+ * 情境之計時(timer)不得使用之名稱，為k6內建指標與k6Scenario.js另建之app_errors，同名時k6建立指標即失敗
+ *
+ * @type {Array}
+ */
+export const RESERVED_METRICS = [
+    'vus', 'vus_max', 'iterations', 'iteration_duration', 'dropped_iterations', 'data_received', 'data_sent', 'checks', 'group_duration',
+    'http_reqs', 'http_req_blocked', 'http_req_connecting', 'http_req_tls_handshaking', 'http_req_sending', 'http_req_waiting',
+    'http_req_receiving', 'http_req_duration', 'http_req_failed',
+    'app_errors',
+]
+
+
+/**
+ * 安全閘所依據之k6指標：連線失敗比例、內容檢核失敗比例、全部請求之回應時間，k6腳本對此三項設有中止門檻(abortOnFail)
+ *
+ * @type {Array}
+ */
+export const GATE_METRICS = ['http_req_failed', 'app_errors', 'http_req_duration']
+
+
+/**
+ * 安全閘與門檻(以環境變數帶入k6腳本)
+ *
+ * failRate為連線失敗之比例上限，appErrRate為內容檢核失敗(狀態碼符合但標頭或內容不符)之比例上限，p95Ms為全部請求95%之回應時間上限(毫秒)，
+ * 任一超過即中止該級(delayAbortEval 20秒)且不再加壓；timeout為單一請求之逾時；nameP95Ms為各請求分組95%回應時間之門檻(只供報告標示，不中止)
+ *
+ * @type {Object}
+ */
+export const GATE = {
+    failRate: 0.05,
+    appErrRate: 0.05,
+    p95Ms: 8000,
+    timeout: '60s',
+    nameP95Ms: 2000,
+}
+
+
+// k6 之時間格式: 數字加單位 ns、us、µs、ms、s、m、h、d, 可連寫, 如 30s、3m、1m30s、.5s、1d(2026-10-18 以 k6 v2.3.0 之 inspect 實測: 接受 1d、.5s、100us,
+// 不接受 1w、3x)。裸數字 k6 視為毫秒, 易誤把秒當毫秒, 故本套件要求帶單位; 整數部分限 9 位以內(超大值 k6 於初始化失敗)
+const DURATION_RE = /^(?:(?:\d{1,9}(?:\.\d+)?|\.\d+)(?:ns|us|µs|ms|s|m|h|d))+$/
+
+// 轉為數字: 空字串(含空白)視為無效(NaN), 不當成 0
+const toNum = (v) => (typeof v === 'string' &amp;&amp; v.trim() === '') ? NaN : Number(v)
+
+// 結果資料夾標籤不可含之字元: Windows 檔名禁用字元、路徑分隔與控制字元
+// eslint-disable-next-line no-control-regex
+const LABEL_BAD_RE = /[\\/:*?"&lt;>|\u0000-\u001f]/
+
+
+/**
+ * 檢核並整理opt之數值類參數(於下載k6、取session之前呼叫)，有誤即拋錯並指出欄位
+ *
+ * @param {Object} opt 輸入WScanStress之設定物件
+ * @returns {Object} 回傳{mode,levels,ramp,dur,gap,batchPerHost,gate,label,procPorts}，gate為覆寫後之安全閘與門檻
+ */
+export function normOpt(opt) {
+    const mode = opt.mode === 'smoke' ? 'smoke' : 'level'
+
+    let levels = [1]
+    if (mode !== 'smoke') {
+        const lv = opt.levels === undefined || opt.levels === null ? DEFAULTS.levels : opt.levels
+        if (!Array.isArray(lv) || lv.length === 0 || Array.from(lv).some((v) => !Number.isInteger(toNum(v)) || toNum(v) &lt; 1)) throw new Error(`opt.levels 須為正整數之非空陣列:${JSON.stringify(opt.levels)}`)
+        levels = Array.from(lv, toNum)
+        if (new Set(levels).size !== levels.length) throw new Error(`opt.levels 不得重複(各級以人數命名輸出資料夾, 重複者會互相覆寫):${JSON.stringify(opt.levels)}`)
+    }
+
+    const ramp = opt.ramp ?? DEFAULTS.ramp
+    if (!DURATION_RE.test(ramp)) throw new Error(`opt.ramp 須為 k6 之時間格式(如 30s、3m、1m30s):${ramp}`)
+    const dur = opt.dur ?? DEFAULTS.dur
+    if (!DURATION_RE.test(dur)) throw new Error(`opt.dur 須為 k6 之時間格式(如 30s、3m、1m30s):${dur}`)
+
+    const gap = toNum(opt.gap ?? DEFAULTS.gap)
+    if (!Number.isFinite(gap) || gap &lt; 0) throw new Error(`opt.gap 須為非負數:${opt.gap}`)
+
+    const batchPerHost = toNum(opt.batchPerHost ?? DEFAULTS.batchPerHost)
+    if (!Number.isInteger(batchPerHost) || batchPerHost &lt; 1) throw new Error(`opt.batchPerHost 須為正整數:${opt.batchPerHost}`)
+
+    if (opt.gate !== undefined &amp;&amp; opt.gate !== null &amp;&amp; (typeof opt.gate !== 'object' || Array.isArray(opt.gate))) throw new Error('opt.gate 須為物件')
+    const gate = { ...GATE, ...(opt.gate || {}) }
+    for (const k of ['failRate', 'appErrRate', 'p95Ms', 'nameP95Ms']) {
+        if (typeof gate[k] !== 'number' || !Number.isFinite(gate[k]) || gate[k] &lt; 0) throw new Error(`opt.gate.${k} 須為非負數:${gate[k]}`)
+    }
+    if (typeof gate.timeout !== 'string' || !DURATION_RE.test(gate.timeout)) throw new Error(`opt.gate.timeout 須為 k6 之時間格式(如 60s):${gate.timeout}`)
+
+    const label = opt.label || (mode === 'smoke' ? 'smoke' : levels.join('-'))
+    if (typeof label !== 'string' || LABEL_BAD_RE.test(label)) throw new Error(`opt.label 須為字串且不得含路徑分隔或檔名禁用字元(\\ / : * ? " &lt; > |):${label}`)
+    if (label.length > 100) throw new Error(`opt.label 不得超過 100 字元(結果資料夾之路徑長度有上限):${label.length} 字元`)
+
+    if (opt.fpPending !== undefined &amp;&amp; opt.fpPending !== null &amp;&amp; typeof opt.fpPending !== 'string') throw new Error(`opt.fpPending 須為字串:${opt.fpPending}`)
+
+    const procPorts = opt.procPorts || {}
+    if (typeof procPorts !== 'object' || Array.isArray(procPorts)) throw new Error('opt.procPorts 須為物件(行程鍵名對埠號)')
+    for (const [k, v] of Object.entries(procPorts)) {
+        if (!Number.isInteger(v) || v &lt; 1 || v > 65535) throw new Error(`opt.procPorts.${k} 須為 1~65535 之整數埠號:${v}`)
+    }
+
+    return { mode, levels, ramp, dur, gap, batchPerHost, gate, label, procPorts }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Oct 18 2026 22:33:18 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

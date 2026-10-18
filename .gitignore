@@ -1,0 +1,14 @@
+node_modules
+.agents
+.opencode
+.claude
+CLAUDE*.md
+AGENTS*.md
+.env
+
+tmp
+test/_tmp
+test/output
+
+sessions_pending*.json
+.manifest.json

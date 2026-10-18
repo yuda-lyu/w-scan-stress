@@ -1,0 +1,32 @@
+{
+  "name": "w-scan-stress",
+  "version": "1.0.1",
+  "main": "dist/w-scan-stress.umd.js",
+  "dependencies": {
+    "playwright": "^1.64.0"
+  },
+  "devDependencies": {
+    "w-package-tools": "^1.1.16"
+  },
+  "scripts": {
+    "test": "mocha --parallel \"test/*.test.mjs\" --timeout 180000",
+    "deploy": "gh-pages -d docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuda-lyu/w-scan-stress.git"
+  },
+  "keywords": [
+    "package",
+    "tool",
+    "scan",
+    "stress",
+    "load",
+    "performance",
+    "k6",
+    "dependency-injection",
+    "node"
+  ],
+  "author": "yuda-lyu(semisphere)",
+  "license": "MIT"
+}

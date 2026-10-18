@@ -1,0 +1,8 @@
+running (0m19.0s), 09/10 VUs, 0 complete and 0 interrupted iterations
+users   [   9% ] 09/10 VUs  0m19.0s/3m30.0s
+users   [  10% ] 10/10 VUs  0m20.0s/3m30.0s
+time="2026-10-18T19:12:20+08:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:8000/api/list\": dial tcp 127.0.0.1:8000: connectex: No connection could be made because the target machine actively refused it."
+time="2026-10-18T19:12:20+08:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:8001/api/check?token=<token>\": dial tcp 127.0.0.1:8001: connectex: No connection could be made because the target machine actively refused it."
+users   [  11% ] 10/10 VUs  0m21.0s/3m30.0s
+time="2026-10-18T19:12:21+08:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:8000/api/list\": request timeout"
+users   [  12% ] 10/10 VUs  0m22.0s/3m30.0s
