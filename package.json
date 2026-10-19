@@ -1,12 +1,12 @@
 {
   "name": "w-scan-stress",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist/w-scan-stress.umd.js",
   "dependencies": {
     "playwright": "^1.64.0"
   },
   "devDependencies": {
-    "w-package-tools": "^1.1.16"
+    "w-package-tools": "^1.1.21"
   },
   "scripts": {
     "test": "mocha --parallel \"test/*.test.mjs\" --timeout 180000",
