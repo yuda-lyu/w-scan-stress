@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#TOOLS">TOOLS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#cmpVerDesc">cmpVerDesc</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#downloadTo">downloadTo</a></li><li><a href="global.html#ensureAllTools">ensureAllTools</a></li><li><a href="global.html#ensureTool">ensureTool</a></li><li><a href="global.html#exists">exists</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#fetchLatestRelease">fetchLatestRelease</a></li><li><a href="global.html#findCachedExe">findCachedExe</a></li><li><a href="global.html#findFile">findFile</a></li><li><a href="global.html#findLatestCached">findLatestCached</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#installVerDir">installVerDir</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#unzipAndFindExe">unzipAndFindExe</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
     
 </nav>
 
@@ -50,7 +50,7 @@
 // 本套件負責 k6 之取得、逐級施壓、安全閘、資源記錄、遮蔽與報告。
 // 流程:
 //   0) 檢核 opt(須給情境; 格式、數值有誤即拋錯, 不下載 k6、不取 session、不建立結果資料夾)
-//   1) 取得 k6(自 GitHub 下載最新版並依版本快取; 無外網時沿用已快取之版本, 或使用指定之執行檔), 並確認可執行
+//   1) 取得 k6(經 ensureBins 依 bin/manifest.json 自快取、鏡像或 k6 官方發布之版本標籤網址取得並校驗; 或使用指定之執行檔), 並確認可執行
 //   2) 以 opt.getSessions 取得各虛擬使用者之 session, 以 opt.buildScenario(或 opt.scenario)取得情境並檢查格式, 寫入清單檔(結束即刪)
 //   3) 依同時在線人數逐級執行 k6, 每級記錄整機與指定行程之處理器、記憶體; 任一級觸發安全閘即不再加壓
 //   4) 以 opt.releaseSessions 釋放 session(如登出; 取得 session 後之任何失敗亦釋放), 遮蔽日誌中 session 之值, 產製文字報告
@@ -59,8 +59,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { join, resolve, dirname } from 'node:path'
-import { TOOLS, normOpt } from './config.mjs'
-import { ensureAllTools } from './download.mjs'
+import { normOpt } from './config.mjs'
+import ensureBins from './ensureBins.mjs'
 import { validateScenario, summarizeScenario, collectSecrets, maskDeep, maskFile, releaseAll } from './scenario.mjs'
 import { locateK6Script, k6Version, runK6, gateTriggered } from './k6.mjs'
 import { snapProcs, startSampler } from './procStat.mjs'
@@ -101,7 +101,7 @@ const savePending = (pending, fps, log) => {
  *
  * 須登入之系統，由使用方以opt.getSessions為每位虛擬使用者各取得登入狀態(如令牌)，結束時以opt.releaseSessions釋放(如登出)；本套件只負責代入與遮蔽，不涉及任何登入機制。取得session後任何失敗(情境格式、k6執行等)皆會釋放；opt.releaseSessions拋錯或回傳非陣列時視為全部未能釋放。執行中以Ctrl+C等方式強制終止本行程時，session不會釋放，結果資料夾內.manifest.json(含session之值)亦會留存，須自行處理
  *
- * k6：預設自GitHub latest release下載最新版並依版本快取於fdTools；無外網時沿用fdTools內已快取之版本(可預先放置)，或以opt.k6Path指定執行檔，以opt.offline不連網。k6腳本不引用網路上之函式庫
+ * k6：k6.exe不含於npm包，首次使用時經ensureBins依bin/manifest.json取得並校驗(SHA-256與大小)：先查快取，再查環境變數W_BIN_MIRROR之鏡像，最後自k6官方發布(版本標籤之資產網址)下載；本套件為主幹模式，執行時先取GitHub主幹之最新清單，取不到時用包內基準清單。快取預設為套件根之bin-cache/，可由W_BIN_CACHE改位置；以opt.offline(或W_BIN_OFFLINE=1)不連網，或以opt.k6Path指定執行檔而不取得。詳見README〈外部執行檔〉。k6腳本不引用網路上之函式庫
  *
  * @class
  * @param {String} fdOut 輸入輸出資料夾路徑字串，每次執行於其下建立&lt;時間>_&lt;標籤>之結果資料夾
@@ -119,9 +119,9 @@ const savePending = (pending, fps, log) => {
  * @param {Number} [opt.batchPerHost=6] 輸入同一批請求對同一主機之並行連線數
  * @param {Object} [opt.gate] 輸入安全閘與門檻之覆寫，鍵同config.mjs之GATE{failRate,appErrRate,p95Ms,timeout,nameP95Ms}
  * @param {String} [opt.label=''] 輸入結果資料夾之標籤字串，不得含路徑分隔或檔名禁用字元，預設由模式與級距組成
- * @param {String} [opt.fdTools=''] 輸入k6存放資料夾路徑字串，預設fdOut/tools
- * @param {String} [opt.k6Path=''] 輸入指定之k6執行檔路徑字串，給予則不下載
- * @param {Boolean} [opt.offline=false] 輸入是否不連網(只用fdTools內已快取之k6)布林值
+ * @param {String} [opt.k6Path=''] 輸入指定之k6執行檔路徑字串，給予則不經ensureBins取得
+ * @param {Boolean} [opt.offline=false] 輸入是否不連網(只用快取與W_BIN_MIRROR鏡像內已備之k6)布林值，true等同環境變數W_BIN_OFFLINE=1
+ * @param {*} [opt.fdTools] 已移除之選項，給予即拋錯(k6存於快取，改以環境變數W_BIN_CACHE指定，或以opt.k6Path指定執行檔)
  * @param {Object} [opt.procPorts={}] 輸入記錄資源之行程鍵名對埠號物件(依埠找監聽之行程)，例如{api:8000,auth:8001}
  * @param {Object} [opt.labels={}] 輸入報告中請求分組、計時與行程之顯示名稱物件，例如{login:'登入',api:'主服務'}
  * @param {Object|Function} [opt.meta={}] 輸入附加於meta.json之使用方資訊物件，或於取得session與情境後產生之函數(傳入{sessions,scenario}，回傳物件或其Promise)，不得含session之值
@@ -212,7 +212,7 @@ const savePending = (pending, fps, log) => {
  *     //   meta.json 本次參數、情境之摘要與測試機
  *     //   smoke/(逐級時為各級之vusNNN/) summary.json k6之彙總, sys.json 整機與各行程之資源, k6.log k6之輸出(session之值已遮蔽)
  *     //   report.txt 文字報告(各級總覽、計時、各分組p95對照與各級明細)
- *     // 另於fdOut/tools存放本次使用之k6(依版本存放)
+ *     // k6.exe不在fdOut: 首次使用時經ensureBins取得並校驗，存於套件根之bin-cache/(可由W_BIN_CACHE改位置)
  *
  * }
  * test()
@@ -225,6 +225,8 @@ async function WScanStress(fdOut, opt = {}) {
     const log = (m) => console.log(m)
 
     //0) opt, 固定之情境先檢查格式(不下載 k6、不取 session)
+    //已移除之 opt.fdTools 明確拒絕(同 w-scan-dep), 免舊呼叫端以為預放之 k6 仍被沿用
+    if (opt.fdTools !== undefined) throw new Error('opt.fdTools 已移除;k6 存於快取,改以環境變數 W_BIN_CACHE 指定,或以 opt.k6Path 指定執行檔,見 README〈外部執行檔〉')
     if (typeof opt.buildScenario !== 'function' &amp;&amp; !opt.scenario) throw new Error('須給情境(opt.buildScenario 或 opt.scenario)')
     for (const k of ['buildScenario', 'getSessions', 'releaseSessions']) {
         if (opt[k] !== undefined &amp;&amp; typeof opt[k] !== 'function') throw new Error(`opt.${k} 須為函數`)
@@ -232,7 +234,6 @@ async function WScanStress(fdOut, opt = {}) {
     if (typeof opt.buildScenario !== 'function') validateScenario(opt.scenario)
     const { mode, levels, ramp, dur, gap, batchPerHost, gate, label, procPorts } = normOpt(opt)
     const outDir = resolve(fdOut)
-    const toolsDir = opt.fdTools ? resolve(opt.fdTools) : join(outDir, 'tools')
     const quiet = opt.quiet === true
 
     //結果資料夾名稱含時間避免覆蓋
@@ -251,8 +252,16 @@ async function WScanStress(fdOut, opt = {}) {
         if (!fs.existsSync(k6Exe)) throw new Error(`指定之 k6 不存在:${k6Exe}`)
     }
     else {
-        const tools = await ensureAllTools(TOOLS, { toolsDir, offline: opt.offline === true, log })
-        k6Exe = tools.k6.exePath
+        //k6.exe 經 ensureBins 取得(快取 → 鏡像 → k6 官方發布之版本標籤網址, 皆以清單之 sha256 與大小校驗); 取不到即於取 session 之前拋錯
+        const bins = await ensureBins({
+            names: 'k6.exe',
+            ...(opt.offline === true ? { offline: true } : {}),
+            onProgress: (p) => {
+                if (p.step === 'download') log(`[k6] 下載 ${p.file} ...`)
+                else if (p.step === 'extract') log(`[k6] 解壓 ${p.member} ...`)
+            },
+        })
+        k6Exe = bins['k6.exe']
     }
     const k6Ver = k6Version(k6Exe)
     const fpScript = locateK6Script()
@@ -420,6 +429,10 @@ async function WScanStress(fdOut, opt = {}) {
 }
 
 
+//ensureBins, 以靜態屬性提供(不另加具名匯出, 使UMD打包後default匯出形態不變): 供部署前預先取得k6.exe, 見README〈外部執行檔〉
+WScanStress.ensureBins = ensureBins
+
+
 export default WScanStress
 </code></pre>
         </article>
@@ -435,7 +448,7 @@ export default WScanStress
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Oct 20 2026 00:02:18 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Oct 29 2026 02:00:46 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

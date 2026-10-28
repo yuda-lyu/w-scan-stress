@@ -6,7 +6,7 @@
 //     ramp、dur、gate.timeout 須為 k6 之時間格式, gap 為非負數, batchPerHost 為正整數, procPorts 之值為埠號, gate 之門檻為非負數,
 //     getSessions、releaseSessions、buildScenario 給了則須為函數, label 不含路徑分隔與檔名禁用字元;
 //     指定之 k6 不存在或不可執行即拋錯; 以上皆不建立結果資料夾、不取 session
-//   實跑(需 k6: 環境變數 K6_PATH 或 PATH 內之 k6.exe, 皆無則自 GitHub 下載至 test/_tmp):
+//   實跑(需 k6, 測試不連網: 環境變數 K6_PATH、PATH 內之 k6.exe, 或清單所載之 k6.exe 已在快取/W_BIN_MIRROR 鏡像者(見 test/tools/findK6.mjs); 皆無則略過實跑):
 //     smoke 為 1 位虛擬使用者走 1 趟; 每位虛擬使用者以 getSessions 取得 session, 其值以 {{鍵}} 代入網址、標頭與文字本體; 二進位本體以 base64 給予(共用或各自);
 //     requests 之 steps 依序、同一步並行, timer 記錄所需之時間與是否全部成功; stay 停留 sec 秒並依 every 週期發出;
 //     結果資料夾含 meta.json、smoke/(或 vusNNN/)之 summary.json、sys.json、k6.log 與 report.txt, 清單檔結束即刪;
@@ -20,12 +20,13 @@ import fs from 'fs'
 import path from 'path'
 import wss from '../src/WScanStress.mjs'
 import startDemoServer from './tools/demoServer.mjs'
-import findK6 from './tools/findK6.mjs'
+import findK6, { findVerifiedK6 } from './tools/findK6.mjs'
+import { hashFile, withEnv } from './tools/binFixtures.mjs'
 
 
 let fd = path.resolve('./test/_tmp/WScanStress')
 let fdOut = path.join(fd, 'out')
-let k6Path = findK6()
+let k6Path = '' //實跑前於 before 取得(findK6 為 async)
 
 
 //ls, 列出資料夾內之檔案(以/分隔之相對路徑, 排序)
@@ -177,13 +178,18 @@ describe('WScanStress: 實跑', function () {
     }
 
     before(async function () {
+        k6Path = await findK6()
+        if (!k6Path) {
+            console.log('  (略過實跑: 找不到 k6.exe; 設 K6_PATH,或於可連網環境執行一次 src/ensureBins.mjs 使 k6 進入快取, 見 test/tools/findK6.mjs)')
+            this.skip()
+        }
         fs.rmSync(fd, { recursive: true, force: true })
         demo = await startDemoServer({ port: 8091 })
         url = demo.url
     })
 
     after(async function () {
-        await demo.close()
+        if (demo) await demo.close()
         fs.rmSync(fd, { recursive: true, force: true })
         assert.ok(!fs.existsSync(fd))
     })
@@ -236,7 +242,6 @@ describe('WScanStress: 實跑', function () {
             procPorts: { demo: 8091 },
             labels: { enter_page: '進入頁面', demo: '示範服務' },
             meta: { purpose: 'unit' },
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         })
@@ -308,7 +313,6 @@ describe('WScanStress: 實跑', function () {
             meta: async ({ sessions, scenario }) => ({ nGot: sessions.length, nPhases: scenario.phases.length }),
             //規則: 未能釋放之 session 存於 fpPending
             fpPending: path.join(fd, 'pending', 'p.json'),
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         })
@@ -346,7 +350,6 @@ describe('WScanStress: 實跑', function () {
             buildScenario: () => ({ phases: [{ kind: 'x' }] }),
             mode: 'smoke',
             label: 'bad',
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         }).then(() => null, (e) => e)
@@ -368,7 +371,6 @@ describe('WScanStress: 實跑', function () {
             releaseSessions: logout,
             scenario: { phases: [{ kind: 'sleep', sec: 1 }] },
             mode: 'smoke',
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         }).then(() => null, (e) => e)
@@ -388,7 +390,6 @@ describe('WScanStress: 實跑', function () {
             scenario: { phases: [{ kind: 'sleep', sec: 1 }] },
             mode: 'smoke',
             label: 'same',
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         })
@@ -417,7 +418,6 @@ describe('WScanStress: 實跑', function () {
             scenario: { phases: [{ kind: 'requests', name: 'refused', steps: [[{ name: 'refused', url: 'http://127.0.0.1:8095/x?token={{token}}' }]] }] },
             mode: 'smoke',
             label: 'mask',
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         })
@@ -452,7 +452,6 @@ describe('WScanStress: 實跑', function () {
             mode: 'smoke',
             label: 'rel',
             fpPending,
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         }).then(() => null, (e) => e)
@@ -479,7 +478,6 @@ describe('WScanStress: 實跑', function () {
             mode: 'smoke',
             label: 'sleep',
             fpPending: path.join(fd, 'pending_sleep', 'p.json'),
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         })
@@ -502,7 +500,6 @@ describe('WScanStress: 實跑', function () {
                 scenario: { phases: [{ kind: 'sleep', sec: 1 }] },
                 mode: 'smoke',
                 label,
-                fdTools: path.join(fd, 'tools'),
                 k6Path,
                 quiet: true,
             }), re)
@@ -519,12 +516,54 @@ describe('WScanStress: 實跑', function () {
             scenario: { phases: [{ kind: 'sleep', sec: 1 }] },
             mode: 'smoke',
             label: 'getfail',
-            fdTools: path.join(fd, 'tools'),
             k6Path,
             quiet: true,
         }).then(() => null, (e) => e)
         assert.match(err.message, /login failed/)
         assert.equal(fs.readdirSync(fdOut).filter((x) => x.endsWith('_getfail')).length, 0)
+    })
+
+    it('不給 k6Path: 經 ensureBins 自本機鏡像取得清單所載之 k6(離線、全域 fetch 禁用), 實跑 smoke 通過', async function () {
+        //規則(D1、O3、E2): k6.exe 由 ensureBins 依 bin/manifest.json 取得並校驗; 鏡像結構 <鏡像>/<套件>/<sha256>/<name>
+        let fpVerified = await findVerifiedK6()
+        if (!fpVerified) {
+            console.log('  (略過: 快取與 W_BIN_MIRROR 內無清單所載之 k6, 無法組本機鏡像)')
+            this.skip()
+        }
+        let manifest = JSON.parse(fs.readFileSync('bin/manifest.json', 'utf8'))
+        let { sha256 } = manifest.files[0].extract
+        let mirror = path.join(fd, 'mirror')
+        fs.mkdirSync(path.join(mirror, 'w-scan-stress', sha256), { recursive: true })
+        fs.copyFileSync(fpVerified, path.join(mirror, 'w-scan-stress', sha256, 'k6.exe'))
+        let cache = path.join(fd, 'cache')
+
+        let fetch0 = globalThis.fetch
+        let netCalls = []
+        globalThis.fetch = (u, ...a) => {
+            //僅放行示範服務(127.0.0.1), 其餘(含 GitHub)記錄並拒絕
+            if (String(u).startsWith(url)) return fetch0(u, ...a)
+            netCalls.push(String(u))
+            throw new Error(`network access is forbidden in tests: ${u}`)
+        }
+        try {
+            let r = await withEnv({ W_BIN_CACHE: cache, W_BIN_MIRROR: mirror, W_BIN_OFFLINE: '1' }, () => wss(path.join(fd, 'out-ensure'), {
+                getSessions,
+                releaseSessions: logout,
+                scenario: { phases: [{ kind: 'requests', name: 'enter', steps: [[{ name: 'profile', url: `${url}/api/profile`, headers: { Authorization: 'Bearer {{token}}' }, check: { status: [200] } }]] }] },
+                mode: 'smoke',
+                quiet: true,
+            }))
+            //規則: 取得之 k6 為快取夾內經清單校驗者(位元組同清單), 且確實以它施壓(k6 版本記於 meta.json)
+            let fpCached = path.join(cache, 'w-scan-stress', sha256, 'k6.exe')
+            assert.equal(hashFile(fpCached).sha256, sha256)
+            assert.deepEqual(r.levels, [{ vus: 1, code: 0, gate: false }])
+            assert.match(JSON.parse(fs.readFileSync(path.join(r.fdRun, 'meta.json'), 'utf8')).k6, /^k6(\.exe)? v\d+\.\d+\.\d+/)
+            //規則: 全程未連 GitHub
+            assert.deepEqual(netCalls, [])
+        }
+        finally {
+            globalThis.fetch = fetch0
+        }
     })
 
 })

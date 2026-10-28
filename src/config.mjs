@@ -1,24 +1,5 @@
-// 全域設定:壓測工具(k6)之下載定義、預設參數與安全閘
-// 作法比照 w-scan-vulnerability、w-scan-dep:工具一律取執行當下之最新版,依版本快取於 fdTools(預設 fdOut/tools)。
-
-
-/**
- * 壓測工具下載定義，自GitHub latest release取得Windows免安裝版(zip)
- *
- * 各項為物件：key為工具鍵名，repo為GitHub儲存庫，kind為資產種類('zip'需解壓後取exe)，matchAsset為判斷資產檔名之函數，exeName為執行檔名稱
- *
- * @type {Array}
- */
-export const TOOLS = [
-    {
-        key: 'k6',
-        repo: 'grafana/k6',
-        kind: 'zip',
-        // k6-v2.2.0-windows-amd64.zip
-        matchAsset: (n) => /^k6-v[\d.]+-windows-amd64\.zip$/.test(n),
-        exeName: 'k6.exe',
-    },
-]
+// 全域設定:預設參數與安全閘
+// 壓測工具 k6 之取得(下載、校驗、快取)不在此:見 src/ensureBins.mjs 與 bin/manifest.json。
 
 
 /**

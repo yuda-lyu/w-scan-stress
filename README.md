@@ -104,7 +104,7 @@ async function test() {
     //   meta.json 本次參數、情境之摘要與測試機
     //   smoke/(逐級時為各級之vusNNN/) summary.json k6之彙總, sys.json 整機與各行程之資源, k6.log k6之輸出(session之值已遮蔽)
     //   report.txt 文字報告(各級總覽、計時、各分組p95對照與各級明細)
-    // 另於fdOut/tools存放本次使用之k6(依版本存放)
+    // k6.exe不在fdOut: 首次使用時經ensureBins取得並校驗，存於套件根之bin-cache/(可由W_BIN_CACHE改位置)
 
 }
 test()
@@ -160,9 +160,8 @@ test()
 | `batchPerHost` | 同一步之請求對同一主機之並行連線數，預設 `6`（同瀏覽器） |
 | `gate` | 安全閘與門檻之覆寫，鍵為 `failRate`、`appErrRate`、`p95Ms`、`timeout`、`nameP95Ms`（預設見 `src/config.mjs` 之 `GATE`） |
 | `label` | 結果資料夾之標籤，不得含路徑分隔或檔名禁用字元，預設由模式與級距組成 |
-| `fdTools` | k6 存放資料夾，預設 `fdOut/tools` |
-| `k6Path` | 指定之 k6 執行檔，給予則不下載 |
-| `offline` | 不連網，只用 `fdTools` 內已快取之 k6，預設 `false` |
+| `k6Path` | 指定之 k6 執行檔，給予則不經 `ensureBins` 取得（不下載、不校驗） |
+| `offline` | 不連網，只用快取與 `W_BIN_MIRROR` 鏡像內已備之 k6，預設 `false`（`true` 等同環境變數 `W_BIN_OFFLINE=1`） |
 | `procPorts` | 記錄資源之行程鍵名對埠號，例如 `{ api: 8000 }` |
 | `labels` | 請求分組、計時與行程之顯示名稱 |
 | `meta` | 附加於 meta.json 之使用方資訊物件，或於取得 session 與情境後產生之函數（傳入 `{ sessions, scenario }`）；不得含 session 之值 |
@@ -177,12 +176,34 @@ test()
 
 取得 session 後任何失敗（情境格式有誤、k6 執行失敗等）皆會呼叫 `releaseSessions`，其拋錯不會遮蓋原本的錯誤。執行中以 Ctrl+C 等方式強制終止行程時則無法釋放，且結果資料夾內的 `.manifest.json`（含 session 之值）會留存，須自行處理。
 
-#### 無外網（內網）使用
+#### 外部執行檔
+本套件執行時需要下列外部執行檔，不含於 npm 包（npm 包內只有清單 `bin/manifest.json`）：
+
+| 檔名 | 用途 | 來源 |
+| --- | --- | --- |
+| `k6.exe` | 施壓（k6 官方 Windows 版） | k6 官方發布（`https://github.com/grafana/k6/releases/download/<版本標籤>/k6-<版本標籤>-windows-amd64.zip`，不鏡像於本套件 repo） |
+
 k6 為單一執行檔，不需安裝；k6 腳本（`src/k6Scenario.js`）不引用網路上之函式庫，施壓期間不需外網。
 
-- 首次於可連網之環境執行，k6 自 GitHub latest release 下載並快取於 `fdTools/k6/<版本>/`；將該資料夾複製至內網主機之 `fdTools` 即可使用。
-- 無法連網時（查詢 GitHub 失敗），自動沿用 `fdTools` 內已快取之最新版本；給 `offline: true` 則不查詢。
-- 亦可自 k6 官方取得 Windows 版（zip 內之 `k6.exe`），置於 `fdTools/k6/<版本>/` 之下（可位於子資料夾），或以 `k6Path` 指定。
+- 首次使用（不給 `k6Path` 而執行 `WScanStress`，或呼叫 `WScanStress.ensureBins()` 或 `w-scan-stress/src/ensureBins.mjs`）時才取得：依 `bin/manifest.json` 所載之 SHA-256 與大小校驗 zip 與解出之 `k6.exe`，存於 `<套件根>/bin-cache/<sha256>/k6.exe`；之後自快取取得（亦校驗）。安裝時不下載。取得失敗（含校驗不符）以帶 `code` 之 Error 拒絕（`E_OFFLINE_MISSING`、`E_HASH_MISMATCH`、`E_SIZE_MISMATCH`、`E_HTTP`、`E_EXTRACT` 等），並於取 session、建立結果資料夾之前。
+- 本套件採**主幹模式**（壓測工具須保持新版）：連網時先取 GitHub 主幹 `bin/manifest.json` 之最新清單（版本標籤之資產網址與雜湊），取不到或不合格式時用 npm 包內之基準清單；因此更新 k6 版本只須更新並推送主幹之清單，不須重新發布套件。清單之信任錨為 GitHub 主幹，`ensureBins` 不接受使用者傳入的清單網址。離線（`W_BIN_OFFLINE=1` 或 `offline: true`）時不取主幹清單，直接用包內基準清單。
+- 環境變數：
+  - `W_BIN_CACHE=<資料夾>`：快取改放 `<資料夾>/w-scan-stress/`（套件所在之 `node_modules` 唯讀時使用，多套件可共用同一資料夾）。
+  - `W_BIN_MIRROR=<資料夾或 http(s) 網址>`：內網鏡像，先找鏡像再連 GitHub；結構為 `<鏡像>/w-scan-stress/<sha256>/<檔名>`（最終檔 `k6.exe` 或 zip）。鏡像之檔同樣以清單校驗，不符即不用。
+  - `W_BIN_OFFLINE=1`：不連網，只用快取與鏡像；缺檔時錯誤（`E_OFFLINE_MISSING`）會列出缺哪些檔、sha256、大小與應放之完整路徑。`WScanStress` 之 `offline: true` 與之等效。
+- 離線（內網）部署：
+  1. 在可連網之電腦設 `W_BIN_CACHE=<空資料夾>`，呼叫 `WScanStress.ensureBins()` 一次（`node -e "import('w-scan-stress/src/ensureBins.mjs').then((m) => m.default())"`）。
+  2. 把該資料夾整個帶到內網電腦，設 `W_BIN_MIRROR=<該資料夾>`（全離線時另設 `W_BIN_OFFLINE=1`）。
+  3. 亦可自 k6 官方取得 Windows 版自行置入鏡像（`<鏡像>/w-scan-stress/<sha256>/k6.exe`，須為清單所載版本之位元組），或以 `k6Path` 指定本機已有之 k6（不校驗）。
+- 更新 k6（維護者）：`node toolg/genBinManifest.mjs`（查 k6 官方最新版 → 下載 Windows zip 與廠商公告之 checksums 檔 → 核對 sha256、大小 → 自算解出之 `k6.exe` 之校驗值 → 寫入 `bin/manifest.json`）；`--tag v2.3.0` 指定版本，`--dry` 乾跑（不寫檔，只印結果與相對現行清單之差異）。產生後跑測試，再推 GitHub 主幹即生效；包內基準清單於下次發布時更新。
+
+#### Breaking changes
+- k6 之取得改經 `ensureBins`（wsemi `fsEnsureBins`）：依 `bin/manifest.json` 以版本標籤之資產網址下載並校驗 SHA-256 與大小；不再查詢 GitHub API 之 `releases/latest`，下載結果也不再免校驗。
+- 移除 `src/download.mjs`（`ensureTool`、`ensureAllTools`、`findLatestCached`、`installVerDir`、`cmpVerDesc`）與 `config.mjs` 之 `TOOLS`；k6 之版本不再由執行當下的 latest release 決定，而由清單決定。
+- 移除選項 `fdTools`（k6 存放資料夾，原預設 `fdOut/tools`，內容為 `k6/<版本>/…`）：改為快取 `<套件根>/bin-cache/<sha256>/k6.exe`，位置由環境變數 `W_BIN_CACHE`（或 `ensureBins({ cacheDir })`）決定；`fdOut` 不再存放 k6。給了 `fdTools` 即拒絕（錯誤訊息指向 `W_BIN_CACHE` 與 `k6Path`）。原放在 `fdTools/k6/<版本>/` 之 k6 不會被沿用；內網部署請改依上節以鏡像備檔。
+- `offline: true` 之語意為「只用快取與 `W_BIN_MIRROR` 鏡像」；無法連網時不再「自動沿用快取中最新版本」，快取或鏡像沒有清單所載版本之 k6 時改為拒絕（`E_OFFLINE_MISSING`）。
+- 新增 `WScanStress.ensureBins` 與 `w-scan-stress/src/ensureBins.mjs`；新增環境變數 `W_BIN_CACHE`、`W_BIN_MIRROR`、`W_BIN_OFFLINE`；新增相依 `wsemi`。
+- 受影響之下游：以 `fdTools` 預放 k6 之使用方（含內網部署腳本），以及自行讀取 `fdOut/tools/k6/` 之程式。
 
 #### 擷取（`src/capture.mjs`）
 以瀏覽器（playwright）依注入之步驟操作網頁，記錄網頁送往各服務之請求，作為組成情境之依據；網頁改版後重新擷取並與上次比對。登入狀態由 `prepare` 或步驟注入，請求本體由 `decode` 解讀，瀏覽器亦可由 `launchBrowser` 注入。內網或無法下載 playwright 之瀏覽器時，以 `browserChannel: 'chrome'`（或 `'msedge'`）使用本機已安裝之瀏覽器。
@@ -223,4 +244,4 @@ console.log(buildCompare('<前>/vus050/summary.json', '<後>/vus050/summary.json
 - 施壓期間勿進行其他測試或重啟受測之服務，否則結果失真。
 - 測試工具與受測之服務同在一台主機時，k6 本身亦佔用處理器；報告列出整機之處理器使用率供判斷。
 - 受測系統若對每個登入狀態限制呼叫次數，應以 `getSessions` 為每位虛擬使用者各自登入，勿共用。
-- GitHub API 未驗證時每小時 60 次，每次執行查詢 1 次。
+- 連網取得 k6 時，主幹模式每次呼叫先取一次 GitHub 主幹之清單（`raw.githubusercontent.com`，不受 GitHub API 每小時 60 次之限制）；快取命中時不再下載 zip。

@@ -82,7 +82,7 @@ async function test() {
     //   meta.json 本次參數、情境之摘要與測試機
     //   smoke/(逐級時為各級之vusNNN/) summary.json k6之彙總, sys.json 整機與各行程之資源, k6.log k6之輸出(session之值已遮蔽)
     //   report.txt 文字報告(各級總覽、計時、各分組p95對照與各級明細)
-    // 另於fdOut/tools存放本次使用之k6(依版本存放)
+    // k6.exe不在fdOut: 首次使用時經ensureBins取得並校驗，存於套件根之bin-cache/(可由W_BIN_CACHE改位置)
 
 }
 test()

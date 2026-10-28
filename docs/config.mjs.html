@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#TOOLS">TOOLS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#cmpVerDesc">cmpVerDesc</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#downloadTo">downloadTo</a></li><li><a href="global.html#ensureAllTools">ensureAllTools</a></li><li><a href="global.html#ensureTool">ensureTool</a></li><li><a href="global.html#exists">exists</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#fetchLatestRelease">fetchLatestRelease</a></li><li><a href="global.html#findCachedExe">findCachedExe</a></li><li><a href="global.html#findFile">findFile</a></li><li><a href="global.html#findLatestCached">findLatestCached</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#installVerDir">installVerDir</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#unzipAndFindExe">unzipAndFindExe</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
     
 </nav>
 
@@ -45,27 +45,8 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>// 全域設定:壓測工具(k6)之下載定義、預設參數與安全閘
-// 作法比照 w-scan-vulnerability、w-scan-dep:工具一律取執行當下之最新版,依版本快取於 fdTools(預設 fdOut/tools)。
-
-
-/**
- * 壓測工具下載定義，自GitHub latest release取得Windows免安裝版(zip)
- *
- * 各項為物件：key為工具鍵名，repo為GitHub儲存庫，kind為資產種類('zip'需解壓後取exe)，matchAsset為判斷資產檔名之函數，exeName為執行檔名稱
- *
- * @type {Array}
- */
-export const TOOLS = [
-    {
-        key: 'k6',
-        repo: 'grafana/k6',
-        kind: 'zip',
-        // k6-v2.2.0-windows-amd64.zip
-        matchAsset: (n) => /^k6-v[\d.]+-windows-amd64\.zip$/.test(n),
-        exeName: 'k6.exe',
-    },
-]
+            <pre class="prettyprint source linenums"><code>// 全域設定:預設參數與安全閘
+// 壓測工具 k6 之取得(下載、校驗、快取)不在此:見 src/ensureBins.mjs 與 bin/manifest.json。
 
 
 /**
@@ -197,7 +178,7 @@ export function normOpt(opt) {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Oct 20 2026 00:02:18 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Oct 29 2026 02:00:46 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

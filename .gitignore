@@ -12,3 +12,6 @@ test/output
 
 sessions_pending*.json
 .manifest.json
+
+# 外部執行檔之快取(外部執行檔規格 S5)
+/bin-cache/
