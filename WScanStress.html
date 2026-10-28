@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#TOOLS">TOOLS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#cmpVerDesc">cmpVerDesc</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#downloadTo">downloadTo</a></li><li><a href="global.html#ensureAllTools">ensureAllTools</a></li><li><a href="global.html#ensureTool">ensureTool</a></li><li><a href="global.html#exists">exists</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#fetchLatestRelease">fetchLatestRelease</a></li><li><a href="global.html#findCachedExe">findCachedExe</a></li><li><a href="global.html#findFile">findFile</a></li><li><a href="global.html#findLatestCached">findLatestCached</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#installVerDir">installVerDir</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#unzipAndFindExe">unzipAndFindExe</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
     
 </nav>
 
@@ -78,7 +78,7 @@
 <p>以k6依使用方注入之情境(請求之動線)，由多位虛擬使用者逐級增加同時在線人數施壓(封閉模型)，量測各請求分組與計時階段之回應時間，並記錄整機與指定行程之處理器、記憶體，結果與文字報告輸出至指定資料夾，僅支援Windows</p>
 <p>情境之格式見src/k6Scenario.js之說明：phases依序執行，requests階段之steps依序執行、同一步之請求並行，可設timer記錄該階段所需之時間；stay階段停留指定秒數並依every週期發出請求；請求以{{變數}}代入各虛擬使用者之session，二進位本體以base64給予(共用或各虛擬使用者各自)</p>
 <p>須登入之系統，由使用方以opt.getSessions為每位虛擬使用者各取得登入狀態(如令牌)，結束時以opt.releaseSessions釋放(如登出)；本套件只負責代入與遮蔽，不涉及任何登入機制。取得session後任何失敗(情境格式、k6執行等)皆會釋放；opt.releaseSessions拋錯或回傳非陣列時視為全部未能釋放。執行中以Ctrl+C等方式強制終止本行程時，session不會釋放，結果資料夾內.manifest.json(含session之值)亦會留存，須自行處理</p>
-<p>k6：預設自GitHub latest release下載最新版並依版本快取於fdTools；無外網時沿用fdTools內已快取之版本(可預先放置)，或以opt.k6Path指定執行檔，以opt.offline不連網。k6腳本不引用網路上之函式庫</p></li></ul></dd>
+<p>k6：k6.exe不含於npm包，首次使用時經ensureBins依bin/manifest.json取得並校驗(SHA-256與大小)：先查快取，再查環境變數W_BIN_MIRROR之鏡像，最後自k6官方發布(版本標籤之資產網址)下載；本套件為主幹模式，執行時先取GitHub主幹之最新清單，取不到時用包內基準清單。快取預設為套件根之bin-cache/，可由W_BIN_CACHE改位置；以opt.offline(或W_BIN_OFFLINE=1)不連網，或以opt.k6Path指定執行檔而不取得。詳見README〈外部執行檔〉。k6腳本不引用網路上之函式庫</p></li></ul></dd>
     
 
     
@@ -214,7 +214,7 @@ async function test() {
     //   meta.json 本次參數、情境之摘要與測試機
     //   smoke/(逐級時為各級之vusNNN/) summary.json k6之彙總, sys.json 整機與各行程之資源, k6.log k6之輸出(session之值已遮蔽)
     //   report.txt 文字報告(各級總覽、計時、各分組p95對照與各級明細)
-    // 另於fdOut/tools存放本次使用之k6(依版本存放)
+    // k6.exe不在fdOut: 首次使用時經ensureBins取得並校驗，存於套件根之bin-cache/(可由W_BIN_CACHE改位置)
 
 }
 test()
@@ -831,46 +831,6 @@ test()
 
         <tr>
             
-                <td class="name"><code>fdTools</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">String</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    <code>''</code>
-                
-                </td>
-            
-
-            <td class="description last"><p>輸入k6存放資料夾路徑字串，預設fdOut/tools</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
                 <td class="name"><code>k6Path</code></td>
             
 
@@ -904,7 +864,7 @@ test()
                 </td>
             
 
-            <td class="description last"><p>輸入指定之k6執行檔路徑字串，給予則不下載</p></td>
+            <td class="description last"><p>輸入指定之k6執行檔路徑字串，給予則不經ensureBins取得</p></td>
         </tr>
 
     
@@ -944,7 +904,45 @@ test()
                 </td>
             
 
-            <td class="description last"><p>輸入是否不連網(只用fdTools內已快取之k6)布林值</p></td>
+            <td class="description last"><p>輸入是否不連網(只用快取與W_BIN_MIRROR鏡像內已備之k6)布林值，true等同環境變數W_BIN_OFFLINE=1</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>fdTools</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">*</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>已移除之選項，給予即拋錯(k6存於快取，改以環境變數W_BIN_CACHE指定，或以opt.k6Path指定執行檔)</p></td>
         </tr>
 
     
@@ -1199,7 +1197,7 @@ test()
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Oct 20 2026 00:02:18 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Oct 29 2026 02:00:46 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
