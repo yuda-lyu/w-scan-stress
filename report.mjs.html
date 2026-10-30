@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#listSnapErrors">listSnapErrors</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
     
 </nav>
 
@@ -50,6 +50,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { GATE_METRICS } from './config.mjs'
+import { listSnapErrors } from './procStat.mjs'
 
 
 const ms = (v) => (v === null || v === undefined) ? '-' : (v >= 1000 ? (v / 1000).toFixed(2) + 's' : Math.round(v) + 'ms')
@@ -179,7 +180,7 @@ export function cpuOf(sys, k) {
     if (!sys || !sys.procBefore || !sys.procAfter) return null
     const a = sys.procBefore[k]
     const b = sys.procAfter[k]
-    if (!a || !b || a.pid !== b.pid) return null
+    if (!a || !b || a.error || b.error || a.pid !== b.pid) return null
     if (!(sys.sec > 0)) return null
     return Math.round((b.cpuSec - a.cpuSec) / sys.sec * 100)
 }
@@ -193,7 +194,7 @@ const memTxt = (sys, k) => {
     if (!sys || !sys.procBefore || !sys.procAfter) return '-'
     const a = sys.procBefore[k]
     const b = sys.procAfter[k]
-    if (!a || !b) return '-'
+    if (!a || !b || a.error || b.error) return '-'
     return `${a.memMb}→${b.memMb}`
 }
 const sysCpuTxt = (sys) => {
@@ -242,6 +243,10 @@ export function buildReport(fpIn, opt = {}) {
         if (L.sys) {
             p('  整機CPU 平均/最高: ' + sysCpuTxt(L.sys) + (procs.length ? '   各行程CPU(單核%): ' + procs.map((k) => `${lb(k)} ${cpuTxt(L.sys, k)}`).join('、') : ''))
             if (procs.length) p('  各行程記憶體(MB, 前→後): ' + procs.map((k) => `${lb(k)} ${memTxt(L.sys, k)}`).join('、'))
+            //查詢監聽行程失敗者(與無人監聽之 - 不同, 須列出原因)
+            for (const [ph, snap] of [['施壓前', L.sys.procBefore], ['施壓後', L.sys.procAfter]]) {
+                for (const s of listSnapErrors(snap)) p(`  ${ph}查詢監聽行程失敗(資源欄為 -) ${s}`)
+            }
         }
         p('')
         p('  ' + pad('分組', 18) + padL('次數', 8) + padL('avg', 9) + padL('med', 9) + padL('p90', 9) + padL('p95', 9) + padL('max', 9) + '   門檻')
@@ -374,7 +379,7 @@ export function buildReport(fpIn, opt = {}) {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Oct 29 2026 02:00:46 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Oct 30 2026 09:36:20 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
