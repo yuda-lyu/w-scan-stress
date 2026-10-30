@@ -8,7 +8,7 @@
 //   3) 依同時在線人數逐級執行 k6, 每級記錄整機與指定行程之處理器、記憶體; 任一級觸發安全閘即不再加壓
 //   4) 以 opt.releaseSessions 釋放 session(如登出; 取得 session 後之任何失敗亦釋放), 遮蔽日誌中 session 之值, 產製文字報告
 // 結果落 fdOut/<時間>_<標籤>/: meta.json、各級 vusNNN/(或 smoke/)之 summary.json、sys.json、k6.log, 以及 report.txt。
-// 僅支援 Windows(k6 之 Windows 版; 行程之資源以 netstat、tasklist 取得)。
+// 僅支援 Windows(k6 之 Windows 版; 依埠找行程經 wsemi 之 execProcessPortPidsSync(netstat、Get-NetTCPConnection), 行程之資源以 tasklist 取得)。
 import fs from 'node:fs'
 import os from 'node:os'
 import { join, resolve, dirname } from 'node:path'
@@ -16,7 +16,7 @@ import { normOpt } from './config.mjs'
 import ensureBins from './ensureBins.mjs'
 import { validateScenario, summarizeScenario, collectSecrets, maskDeep, maskFile, releaseAll } from './scenario.mjs'
 import { locateK6Script, k6Version, runK6, gateTriggered } from './k6.mjs'
-import { snapProcs, startSampler } from './procStat.mjs'
+import { snapProcs, listSnapErrors, startSampler } from './procStat.mjs'
 import { buildReport } from './report.mjs'
 
 
@@ -75,7 +75,7 @@ const savePending = (pending, fps, log) => {
  * @param {String} [opt.k6Path=''] 輸入指定之k6執行檔路徑字串，給予則不經ensureBins取得
  * @param {Boolean} [opt.offline=false] 輸入是否不連網(只用快取與W_BIN_MIRROR鏡像內已備之k6)布林值，true等同環境變數W_BIN_OFFLINE=1
  * @param {*} [opt.fdTools] 已移除之選項，給予即拋錯(k6存於快取，改以環境變數W_BIN_CACHE指定，或以opt.k6Path指定執行檔)
- * @param {Object} [opt.procPorts={}] 輸入記錄資源之行程鍵名對埠號物件(依埠找監聽之行程)，例如{api:8000,auth:8001}
+ * @param {Object} [opt.procPorts={}] 輸入記錄資源之行程鍵名對埠號物件(依埠找監聽之行程，經wsemi之execProcessPortPidsSync，同一埠有多個行程監聽時取PID最小者)，例如{api:8000,auth:8001}；無人監聽者sys.json為null，查詢失敗者為{error}並印於日誌、列於報告
  * @param {Object} [opt.labels={}] 輸入報告中請求分組、計時與行程之顯示名稱物件，例如{login:'登入',api:'主服務'}
  * @param {Object|Function} [opt.meta={}] 輸入附加於meta.json之使用方資訊物件，或於取得session與情境後產生之函數(傳入{sessions,scenario}，回傳物件或其Promise)，不得含session之值
  * @param {Boolean} [opt.quiet=false] 輸入是否不將k6之輸出顯示於主控台布林值(一律寫入k6.log)
@@ -294,6 +294,7 @@ async function WScanStress(fdOut, opt = {}) {
             log(`\n===== 第 ${i + 1} 級: 同時在線 ${vus} 人 =====\n`)
 
             const procBefore = snapProcs(procPorts)
+            for (const s of listSnapErrors(procBefore)) log(`施壓前查詢監聽行程失敗(該行程之資源不記錄) ${s}`)
             const stopSampler = startSampler()
             const t0 = Date.now()
             let code = null
@@ -327,6 +328,7 @@ async function WScanStress(fdOut, opt = {}) {
             }
             const sec = (Date.now() - t0) / 1000
             const procAfter = snapProcs(procPorts)
+            for (const s of listSnapErrors(procAfter)) log(`施壓後查詢監聽行程失敗(該行程之資源不記錄) ${s}`)
             fs.writeFileSync(join(fdLevel, 'sys.json'), JSON.stringify({ sec, samples, procBefore, procAfter }, null, 1), 'utf8')
             const gt = gateTriggered(fpSummary)
             rLevels.push({ vus, code, gate: gt })

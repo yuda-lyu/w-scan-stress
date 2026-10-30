@@ -3,6 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { GATE_METRICS } from './config.mjs'
+import { listSnapErrors } from './procStat.mjs'
 
 
 const ms = (v) => (v === null || v === undefined) ? '-' : (v >= 1000 ? (v / 1000).toFixed(2) + 's' : Math.round(v) + 'ms')
@@ -132,7 +133,7 @@ export function cpuOf(sys, k) {
     if (!sys || !sys.procBefore || !sys.procAfter) return null
     const a = sys.procBefore[k]
     const b = sys.procAfter[k]
-    if (!a || !b || a.pid !== b.pid) return null
+    if (!a || !b || a.error || b.error || a.pid !== b.pid) return null
     if (!(sys.sec > 0)) return null
     return Math.round((b.cpuSec - a.cpuSec) / sys.sec * 100)
 }
@@ -146,7 +147,7 @@ const memTxt = (sys, k) => {
     if (!sys || !sys.procBefore || !sys.procAfter) return '-'
     const a = sys.procBefore[k]
     const b = sys.procAfter[k]
-    if (!a || !b) return '-'
+    if (!a || !b || a.error || b.error) return '-'
     return `${a.memMb}→${b.memMb}`
 }
 const sysCpuTxt = (sys) => {
@@ -195,6 +196,10 @@ export function buildReport(fpIn, opt = {}) {
         if (L.sys) {
             p('  整機CPU 平均/最高: ' + sysCpuTxt(L.sys) + (procs.length ? '   各行程CPU(單核%): ' + procs.map((k) => `${lb(k)} ${cpuTxt(L.sys, k)}`).join('、') : ''))
             if (procs.length) p('  各行程記憶體(MB, 前→後): ' + procs.map((k) => `${lb(k)} ${memTxt(L.sys, k)}`).join('、'))
+            //查詢監聽行程失敗者(與無人監聽之 - 不同, 須列出原因)
+            for (const [ph, snap] of [['施壓前', L.sys.procBefore], ['施壓後', L.sys.procAfter]]) {
+                for (const s of listSnapErrors(snap)) p(`  ${ph}查詢監聽行程失敗(資源欄為 -) ${s}`)
+            }
         }
         p('')
         p('  ' + pad('分組', 18) + padL('次數', 8) + padL('avg', 9) + padL('med', 9) + padL('p90', 9) + padL('p95', 9) + padL('max', 9) + '   門檻')

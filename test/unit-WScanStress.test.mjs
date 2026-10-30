@@ -10,6 +10,7 @@
 //     smoke 為 1 位虛擬使用者走 1 趟; 每位虛擬使用者以 getSessions 取得 session, 其值以 {{鍵}} 代入網址、標頭與文字本體; 二進位本體以 base64 給予(共用或各自);
 //     requests 之 steps 依序、同一步並行, timer 記錄所需之時間與是否全部成功; stay 停留 sec 秒並依 every 週期發出;
 //     結果資料夾含 meta.json、smoke/(或 vusNNN/)之 summary.json、sys.json、k6.log 與 report.txt, 清單檔結束即刪;
+//     procPorts 依埠找行程(經 wsemi 之 execProcessPortPidsSync): 找到者記資源, 無人監聽為 null, 查詢失敗為 { error } 並記於日誌與報告(壓測照常完成);
 //     k6.log 與 meta.json 不含 session 之值; 結束時以 releaseSessions 釋放, 未能釋放者存於 fpPending(預設結果資料夾之 sessions_pending.json);
 //     逐級時任一級觸發安全閘(內容檢核失敗比例超過 5% 等)即不再加壓; 附加之 meta(物件或於取得 session 與情境後產生之函數)併入 meta.json;
 //     取得 session 後任何失敗(情境格式、meta、k6)皆釋放 session 並刪清單檔, 原始錯誤不被釋放之錯誤遮蓋;
@@ -287,6 +288,43 @@ describe('WScanStress: 實跑', function () {
         assert.ok(r.report.includes('=== 計時 enter_page(進入頁面) ==='))
         assert.ok(r.report.includes('demo(示範服務)'))
         assert.equal(fs.readFileSync(path.join(r.fdRun, 'report.txt'), 'utf8'), r.report)
+    })
+
+    it('依埠找行程之查詢失敗(系統資料夾不存在, netstat 與 PowerShell 皆無法啟動): 壓測照常完成, 失敗記於日誌、sys.json 與報告, 不與無人監聽混淆', async function () {
+        let logs = []
+        let logOrig = console.log
+        console.log = (...a) => {
+            logs.push(a.join(' '))
+        }
+        let r
+        try {
+            r = await withEnv({ SystemRoot: 'Z:\\__no_such_system_root__' }, () => wss(fdOut, {
+                buildScenario: () => ({ phases: [{ kind: 'sleep', sec: 1 }] }),
+                mode: 'smoke',
+                procPorts: { demo: 8091 },
+                label: 'procerr',
+                k6Path,
+                quiet: true,
+            }))
+        }
+        finally {
+            console.log = logOrig
+        }
+        //規則: 查詢監聽行程失敗不使壓測失敗(資源記錄為輔助資訊)
+        assert.deepEqual(r.levels, [{ vus: 1, code: 0, gate: false }])
+        let sys = JSON.parse(fs.readFileSync(path.join(r.fdRun, 'smoke', 'sys.json'), 'utf8'))
+        //規則: 查詢監聽者失敗者記為{error}(施壓前、後皆是), 不是null(null為無人監聽)
+        for (let ph of ['procBefore', 'procAfter']) {
+            assert.deepEqual(Object.keys(sys[ph].demo), ['error'], ph)
+            assert.match(sys[ph].demo.error, /port\[8091\] listener query failed/, ph)
+        }
+        //規則: 失敗記於日誌(日誌行之「(該行程之資源不記錄)」為其獨有字樣; 報告全文亦會印出, 其字樣為「(資源欄為 -)」, 不得混為一談)
+        assert.ok(logs.some((s) => s.includes('施壓前查詢監聽行程失敗(該行程之資源不記錄) demo: port[8091] listener query failed')), logs.join('\n'))
+        assert.ok(logs.some((s) => s.includes('施壓後查詢監聽行程失敗(該行程之資源不記錄) demo: port[8091] listener query failed')), logs.join('\n'))
+        //規則: 失敗列於報告, 該行程之資源欄為-
+        assert.ok(r.report.includes('施壓前查詢監聽行程失敗(資源欄為 -) demo: port[8091] listener query failed'), r.report)
+        assert.ok(r.report.includes('各行程CPU(單核%): demo -'), r.report)
+        assert.ok(!/NaN/.test(r.report), r.report)
     })
 
     it('逐級: 觸發安全閘即不再加壓; 未能釋放之 session 存於 fpPending; meta 函數', async function () {

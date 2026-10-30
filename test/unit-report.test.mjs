@@ -94,6 +94,15 @@ describe('report: 輔助函數', function () {
         assert.equal(cpuOf({ ...L.sys, sec: undefined }, 'api'), null)
     })
 
+    it('cpuOf: 查詢監聽行程失敗({error})者不計, 不得得到 NaN', function () {
+        let ok = L.sys.procBefore.api
+        let er = { error: 'port[8000] listener query failed: powershell timeout[10000ms]' }
+        //規則: 前後任一次為查詢監聽行程失敗(error)者不計(兩次皆失敗時前後PID同為undefined, 仍不得算出NaN)
+        assert.equal(cpuOf({ sec: 100, procBefore: { api: er }, procAfter: { api: er } }, 'api'), null)
+        assert.equal(cpuOf({ sec: 100, procBefore: { api: er }, procAfter: { api: ok } }, 'api'), null)
+        assert.equal(cpuOf({ sec: 100, procBefore: { api: ok }, procAfter: { api: er } }, 'api'), null)
+    })
+
 })
 
 
@@ -186,10 +195,56 @@ describe('report: buildReport', function () {
         assert.ok(!t.includes('取清單'))
     })
 
+    it('資源取樣皆成功時, 不出現查詢監聽行程失敗之列', function () {
+        //規則: 只在有查詢監聽行程失敗({error})時才列出
+        assert.ok(!txt.includes('查詢監聽行程失敗'))
+    })
+
     it('fixtures 未被改動', function () {
         //報告為唯讀: 不寫入結果資料夾(檔案清單與內容雜湊皆與呼叫前相同; 呼叫前之快照於本檔載入時取得)
         assert.deepEqual(snapshot(fdRun), snap0)
         assert.deepEqual(fs.readdirSync(fdRun).sort(), ['meta.json', 'vus010'])
+    })
+
+})
+
+
+describe('report: 查詢監聽行程失敗', function () {
+
+    let fd = path.resolve('./test/_tmp/report-procerr')
+    let msg = 'port[8000] listener query failed: netstat none(not trusted alone), powershell timeout[10000ms]'
+
+    before(function () {
+        fs.rmSync(fd, { recursive: true, force: true })
+        fs.cpSync(fdRun, fd, { recursive: true })
+        //api: 施壓前查詢失敗、施壓後成功; auth: 前後皆失敗(原因相同)
+        let sys = JSON.parse(fs.readFileSync(path.join(fd, 'vus010', 'sys.json'), 'utf8'))
+        sys.procBefore = { api: { error: msg }, auth: { error: msg } }
+        sys.procAfter = { api: sys.procAfter.api, auth: { error: msg } }
+        fs.writeFileSync(path.join(fd, 'vus010', 'sys.json'), JSON.stringify(sys), 'utf8')
+    })
+
+    after(function () {
+        fs.rmSync(fd, { recursive: true, force: true })
+        assert.ok(!fs.existsSync(fd))
+    })
+
+    it('明細列出失敗之行程與原因, 該行程之處理器與記憶體欄為 -(不是 NaN), 總覽欄亦為 -', function () {
+        let t = buildReport(fd)
+        let i = t.split('\n').findIndex((s) => s.startsWith('--- 10人 ---'))
+        let d = t.split('\n').slice(i).join('\n')
+        //規則: 查詢監聽行程失敗者須列出(與無人監聽之 - 區分), 附失敗原因
+        assert.ok(d.includes(`施壓前查詢監聽行程失敗(資源欄為 -) api: ${msg}`), d)
+        assert.ok(d.includes(`施壓前查詢監聽行程失敗(資源欄為 -) auth: ${msg}`), d)
+        assert.ok(d.includes(`施壓後查詢監聽行程失敗(資源欄為 -) auth: ${msg}`), d)
+        //規則: 施壓後成功者不列
+        assert.ok(!d.includes('施壓後查詢監聽行程失敗(資源欄為 -) api'), d)
+        //規則: 該行程之處理器與記憶體欄為-
+        assert.ok(d.includes('各行程CPU(單核%): api(主服務) -、auth -'), d)
+        assert.ok(d.includes('各行程記憶體(MB, 前→後): api(主服務) -、auth -'), d)
+        assert.ok(!/NaN|undefined/.test(t), t)
+        let row = t.split('\n').find((x) => x.startsWith('10人'))
+        assert.deepEqual(row.trim().split(/\s+/).slice(-2), ['-', '-'])
     })
 
 })

@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WScanStress.html">WScanStress</a></li></ul><h3>Global</h3><ul><li><a href="global.html#DEFAULTS">DEFAULTS</a></li><li><a href="global.html#GATE">GATE</a></li><li><a href="global.html#GATE_METRICS">GATE_METRICS</a></li><li><a href="global.html#RESERVED_METRICS">RESERVED_METRICS</a></li><li><a href="global.html#buildCompare">buildCompare</a></li><li><a href="global.html#buildReport">buildReport</a></li><li><a href="global.html#capture">capture</a></li><li><a href="global.html#collectSecrets">collectSecrets</a></li><li><a href="global.html#cpuOf">cpuOf</a></li><li><a href="global.html#diffCapture">diffCapture</a></li><li><a href="global.html#ensureBins">ensureBins</a></li><li><a href="global.html#failStat">failStat</a></li><li><a href="global.html#failedChecks">failedChecks</a></li><li><a href="global.html#gateTriggered">gateTriggered</a></li><li><a href="global.html#k6Version">k6Version</a></li><li><a href="global.html#listSnapErrors">listSnapErrors</a></li><li><a href="global.html#loadLevel">loadLevel</a></li><li><a href="global.html#locateK6Script">locateK6Script</a></li><li><a href="global.html#maskDeep">maskDeep</a></li><li><a href="global.html#maskFile">maskFile</a></li><li><a href="global.html#maskSecrets">maskSecrets</a></li><li><a href="global.html#maskUrlDef">maskUrlDef</a></li><li><a href="global.html#namesOf">namesOf</a></li><li><a href="global.html#normOpt">normOpt</a></li><li><a href="global.html#pidOfPort">pidOfPort</a></li><li><a href="global.html#procStat">procStat</a></li><li><a href="global.html#ratio">ratio</a></li><li><a href="global.html#releaseAll">releaseAll</a></li><li><a href="global.html#runK6">runK6</a></li><li><a href="global.html#savePending">savePending</a></li><li><a href="global.html#snapProcs">snapProcs</a></li><li><a href="global.html#startSampler">startSampler</a></li><li><a href="global.html#summarizeScenario">summarizeScenario</a></li><li><a href="global.html#timersOf">timersOf</a></li><li><a href="global.html#validateScenario">validateScenario</a></li></ul>
     
 </nav>
 
@@ -46,35 +46,42 @@
     <section>
         <article>
             <pre class="prettyprint source linenums"><code>// 資源記錄:各服務(依埠找監聽之行程)之累計處理器時間與記憶體, 以及整機之處理器使用率與記憶體(含 k6 本身)
-// 僅支援 Windows(netstat、tasklist)
+// 僅支援 Windows(監聽者之查詢經 wsemi 之 execProcessPortPidsSync: netstat 與 Get-NetTCPConnection; 行程資源以 tasklist)
 import os from 'node:os'
 import { execSync } from 'node:child_process'
+import execProcessPortPidsSync from 'wsemi/src/execProcessPortPidsSync.mjs'
 
 
-// netstat 於施壓時(大量連線、TIME_WAIT)之輸出可達數 MB, 預設 maxBuffer(1MB)會 ENOBUFS 而靜默得到空結果; stderr 不外洩至主控台
+// tasklist 之輸出雖小, 仍明設 maxBuffer; stderr 不外洩至主控台
+// (監聽者之查詢不在此執行: 施壓時 netstat 之輸出可達數 MB, 其 maxBuffer 由 wsemi 之 execProcessPortPidsSync 設定)
 const EXEC_OPT = { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }
 
 
 /**
- * 以netstat取監聽指定埠之行程PID
+ * 查詢監聽指定埠之行程PID(經wsemi之execProcessPortPidsSync: Windows先netstat，查無或失敗再以Get-NetTCPConnection確認；判定不依netstat之狀態欄，因本機OS之TCP狀態值有錯置、netstat亦會漏列新起之監聽)
+ *
+ * 空陣列只代表已確認無人監聽；查詢失敗(指令無法執行、逾時、輸出無法解析)與埠號不合法一律拋錯，不以空陣列代替
  *
  * @param {Number} port 輸入埠號，須為1~65535之整數
- * @returns {String} 回傳PID字串，找不到或埠號不合法則回傳''
+ * @param {Object} [opt={}] 輸入設定物件，供測試注入，僅轉傳exec(spawnSync形之執行函數)、platform給execProcessPortPidsSync(格式見其說明)
+ * @returns {Array} 回傳PID數字陣列(去重、由小到大)，空陣列代表無人監聽
+ * @throws {Error} 埠號不合法或查詢失敗時拋錯，訊息為查詢失敗之原因
  */
-export function pidOfPort(port) {
-    const n = Number(port)
-    if (!Number.isInteger(n) || n &lt; 1 || n > 65535) return ''
-    try {
-        const out = execSync('netstat -ano', EXEC_OPT)
-        for (const ln of out.split(/\r?\n/)) {
-            const m = new RegExp(`^\\s*TCP\\s+\\S+:${n}\\s+\\S+\\s+LISTENING\\s+(\\d+)`).exec(ln)
-            if (m) return m[1]
-        }
+export function pidOfPort(port, opt = {}) {
+    if (!Number.isInteger(port) || port &lt; 1 || port > 65535) {
+        throw new Error(`port 須為 1~65535 之整數:${String(port)}`)
     }
-    catch {
-        return ''
-    }
-    return ''
+    //失敗之原因僅由 onTrace 之 settle 事件取得(同步版回傳 null 而不拋錯)
+    let msg = ''
+    const pids = execProcessPortPidsSync(port, {
+        exec: opt.exec,
+        platform: opt.platform,
+        onTrace: (e) => {
+            if (e.type === 'settle' &amp;&amp; !e.ok) msg = e.msg
+        },
+    })
+    if (pids === null) throw new Error(msg || `port[${port}] listener query failed`)
+    return pids
 }
 
 
@@ -103,15 +110,36 @@ export function procStat(pid) {
 /**
  * 依行程之埠取各行程之資源
  *
+ * 同一埠有多個行程監聽時取PID最小者(pidOfPort之結果已排序，前後兩次取樣取同一個)；本機OS上新起之監聽或無人之埠，每埠查詢約1秒(netstat漏列而改以Get-NetTCPConnection確認)
+ *
  * @param {Object} kpSvcPort 輸入行程鍵名對埠號之物件，例如{api:8000,auth:8001}
- * @returns {Object} 回傳行程鍵名對{pid,memMb,cpuSec}之物件，取不到者為null
+ * @param {Object} [opt={}] 輸入設定物件，供測試注入，轉傳給pidOfPort
+ * @returns {Object} 回傳行程鍵名對{pid,memMb,cpuSec}之物件；無人監聽該埠或tasklist取不到者為null；查詢監聽者失敗者為{error}，error為失敗原因字串(不與無人監聽混淆)
  */
-export function snapProcs(kpSvcPort) {
+export function snapProcs(kpSvcPort, opt = {}) {
     const r = {}
     for (const k of Object.keys(kpSvcPort)) {
-        r[k] = procStat(pidOfPort(kpSvcPort[k]))
+        try {
+            const pids = pidOfPort(kpSvcPort[k], opt)
+            r[k] = pids.length > 0 ? procStat(String(pids[0])) : null
+        }
+        catch (err) {
+            r[k] = { error: err.message }
+        }
     }
     return r
+}
+
+
+/**
+ * 列出一次資源取樣中查詢監聽者失敗之行程
+ *
+ * @param {Object} snap 輸入snapProcs之回傳物件(或sys.json之procBefore、procAfter)
+ * @returns {Array} 回傳字串陣列，每項為「行程鍵名: 失敗原因」，無則為空陣列
+ */
+export function listSnapErrors(snap) {
+    if (!snap || typeof snap !== 'object') return []
+    return Object.keys(snap).filter((k) => snap[k] &amp;&amp; typeof snap[k].error === 'string').map((k) => `${k}: ${snap[k].error}`)
 }
 
 
@@ -155,7 +183,7 @@ export function startSampler() {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Oct 29 2026 02:00:46 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Oct 30 2026 09:36:20 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

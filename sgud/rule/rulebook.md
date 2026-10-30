@@ -20,7 +20,7 @@
 | 文字報告、對照 | `src/report.mjs`、`src/compare.mjs` | — |
 | 瀏覽器擷取 | `src/capture.mjs`(經 `w-scan-stress/src/capture.mjs` 引用,不在 `dist` 內) | — |
 
-- 已知限制:①僅 Windows(k6 之 Windows 版、`netstat`/`tasklist`/`tar.exe`).②主函數捕捉不到 Ctrl+C/行程被終止:此時 `finally` 不執行,session 未釋放且結果資料夾內 `.manifest.json`(含 session 之值)留存,須使用方自行處理(README〈Notes〉).③`capture.mjs` 需 `playwright` 與其瀏覽器,`dist`(`main`)不含之.④k6 取得走清單之版本標籤資產網址(不查 GitHub API),主幹模式連網時每次呼叫先取一次 `raw.githubusercontent.com` 之主幹清單(2026-10-29 起,見 R14).
+- 已知限制:①僅 Windows(k6 之 Windows 版、依埠找行程經 wsemi `execProcessPortPidsSync`〔`netstat`＋`Get-NetTCPConnection`,見 R15〕、`tasklist`、`tar.exe`).②主函數捕捉不到 Ctrl+C/行程被終止:此時 `finally` 不執行,session 未釋放且結果資料夾內 `.manifest.json`(含 session 之值)留存,須使用方自行處理(README〈Notes〉).③`capture.mjs` 需 `playwright` 與其瀏覽器,`dist`(`main`)不含之.④k6 取得走清單之版本標籤資產網址(不查 GitHub API),主幹模式連網時每次呼叫先取一次 `raw.githubusercontent.com` 之主幹清單(2026-10-29 起,見 R14).
 
 ## 1. 規則(程式碼須長成什麼樣)
 
@@ -53,9 +53,9 @@
 
 ### R05 子行程與同步指令:失敗要收尾、輸出要夠大
 
-- 內容:①每個 `spawn` 須掛 `error` 事件,spawn 失敗(ENOENT/EACCES/EPERM,Windows 對非執行檔為同步拋 `spawn UNKNOWN`)時關閉寫入串流並 reject 帶明確訊息,不得成為未捕捉例外;`k6.log` 之寫入串流 `error` 須**先於 spawn** 掛上,`end` 回呼帶出之錯誤亦 reject(不得誤 resolve).②呼叫端以 `try/finally` 停止取樣器(`startSampler` 之計時器不得留著).③`execSync`/`spawnSync` 取輸出者須明設 `maxBuffer`(施壓時 `netstat -ano` 可達數 MB,預設 1MB 會 ENOBUFS 而靜默得到空結果),stderr 不外洩至主控台.④`taskkill`/終止行程不在本套件範圍(k6 隨 stdio 結束,Ctrl+C 時同主控台一併中止).
+- 內容:①每個 `spawn` 須掛 `error` 事件,spawn 失敗(ENOENT/EACCES/EPERM,Windows 對非執行檔為同步拋 `spawn UNKNOWN`)時關閉寫入串流並 reject 帶明確訊息,不得成為未捕捉例外;`k6.log` 之寫入串流 `error` 須**先於 spawn** 掛上,`end` 回呼帶出之錯誤亦 reject(不得誤 resolve).②呼叫端以 `try/finally` 停止取樣器(`startSampler` 之計時器不得留著).③`execSync`/`spawnSync` 取輸出者須明設 `maxBuffer`(施壓時 `netstat -ano` 可達數 MB,預設 1MB 會 ENOBUFS 而靜默得到空結果),stderr 不外洩至主控台.2026-10-30 起 `netstat` 不由本套件執行(R15,wsemi 的 `execProcessPortPidsSync` 自設 `maxBuffer` 64MB 並於逾量時視為失敗),本套件直接執行者只剩 `tasklist`.④`taskkill`/終止行程不在本套件範圍(k6 隨 stdio 結束,Ctrl+C 時同主控台一併中止).
 - 盤點:`grep -nE "\b(spawn|spawnSync|execSync)\(" src/*.mjs`
-- 站點全集與判準:`src/k6.mjs` 之 `runK6`(已套 ①)、`k6Version`(spawnSync,已檢 `error`/`status`);`src/procStat.mjs` 之 `pidOfPort`、`procStat`(execSync,已套 ③);取樣器停止見 `WScanStress` 之 `finally`(已套 ②).
+- 站點全集與判準:`src/k6.mjs` 之 `runK6`(已套 ①)、`k6Version`(spawnSync,已檢 `error`/`status`);`src/procStat.mjs` 之 `procStat`(execSync〔tasklist〕,已套 ③;`pidOfPort` 不再 execSync,見 R15);取樣器停止見 `WScanStress` 之 `finally`(已套 ②).
 - 對應:`test/unit-k6.test.mjs`、`test/unit-procStat.test.mjs`、`test/unit-WScanStress.test.mjs`.
 
 ### R06 情境格式:檢核端須涵蓋 k6 腳本讀取之每個欄位
@@ -134,6 +134,24 @@
 - k6 之真檔(zip 約 30MB)不入 repo,故下載路徑(T3、T4、T8)以「與真清單同形之合成清單」驗證(沿用真清單之網址、鍵名、成員路徑,僅校驗值換成合成內容之值,套件根為暫存夾內之副本),真清單本身由 T6(經 `src/ensureBins.mjs` 離線缺檔,訊息含真清單之值)與 schema 檢核案驗證;真 k6 之取得與實跑僅在快取已暖時執行.
 - 更新 k6(U2、U3):`node toolg/genBinManifest.mjs`(`--dry` 乾跑)→ `npm test` → 與程式一併推 GitHub 主幹即生效;包內基準清單於下次發布時隨包更新.
 
+### R15 依埠找監聽行程:不自行解析 netstat,失敗不得與「無人監聽」同形(2026-10-30,主控經驗第三十七節)
+
+- 背景:本機 OS(Windows 11 26300＋KB5127936)之系統回報 TCP 連線狀態值錯誤,`netstat -ano` 整列漏列新起之監聽(修前實測:本程序在 `127.0.0.1`、`0.0.0.0`、`::` 各監聽 5 次,netstat 列出 0/15,舊 `pidOfPort` 查得 0/15,回 `''`),對外連線反列 `LISTENING`.以 netstat 之 `LISTENING` 判斷「誰在監聽某埠」者皆誤判.
+- 內容:①依埠找監聽行程只經 wsemi 的 `execProcessPortPidsSync`(Windows 先 `netstat -ano`,查無或失敗再以 `Get-NetTCPConnection -LocalPort` 確認;判定不依狀態欄,以遠端位址為萬用位址且遠端埠 0 判監聽);本套件不自行呼叫或解析 `netstat`,不以 `LISTENING` 字樣判斷.②**查詢失敗不得與無人監聽同形**:`pidOfPort(port)` 回 PID 數字陣列(去重、由小到大),`[]` 只代表已確認無人;查詢失敗與埠號不合法一律拋錯(訊息取自 wsemi 的 `onTrace` 之 `settle.msg`);埠號須為 1~65535 之 Number 整數(字串、小數、`undefined` 皆拋錯).③`snapProcs` 逐鍵 `try/catch`:無人監聽或 tasklist 取不到為 `null`(舊形不變);查詢失敗為 `{ error: <原因字串> }`,不使整次取樣中斷、不使壓測失敗(資源記錄為輔助資訊).④失敗須沿呼叫鏈可見:`WScanStress` 於施壓前、後各自 `log` 失敗行程與原因(`listSnapErrors`);`sys.json` 保留 `{ error }`;`report.mjs` 之 `cpuOf`、`memTxt` 遇 `error` 者回 `null`/`-`(不得算出 `NaN`,R13④),明細列出「施壓前/後查詢監聽行程失敗」與原因.⑤同一埠有多個行程監聽時取 PID 最小者(已排序,故前後兩次取樣取同一個,`cpuOf` 之 PID 相等判斷才成立);其餘 PID 不記錄(取捨:一個服務鍵名對應一個行程;多行程共用一埠屬罕見情形).⑥耗時:本機 OS 上新起之監聽與無人之埠每次約 0.8~1.2 秒(netstat 查無後轉 PowerShell 冷啟動),每級施壓前後各一次、每埠一次;`sec` 於 `procAfter` 取樣之前計得,故不受影響;`spawnSync` 期間阻塞事件迴圈,但此時取樣器已停(`procAfter`)或尚未啟(`procBefore`).⑦`pid` 於 `sys.json` 仍為字串(`procStat(pid)` 介面不變);`pidOfPort` 之 `opt`(`exec`、`platform`)僅供測試注入.
+- 盤點:`grep -nE "netstat|LISTENING|ESTABLISHED|TIME_WAIT|Get-NetTCP" src/*.mjs`(程式碼行應無 `netstat` 之執行與解析,僅註解);`grep -n "execProcessPortPidsSync" src/*.mjs`;連線計數類站點:`grep -nE "ESTABLISHED|TIME_WAIT|connections" src/*.mjs`(應無).
+- 站點全集與判準:
+
+| 站點 | 作法 | 判準 |
+| --- | --- | --- |
+| `src/procStat.mjs` `pidOfPort` | 轉呼叫 `execProcessPortPidsSync`,失敗拋錯 | 已套 |
+| `src/procStat.mjs` `snapProcs` | 逐鍵取最小 PID,`{ error }` 記錄失敗 | 已套 |
+| `src/procStat.mjs` `procStat`(`tasklist`) | 以 PID 取記憶體與處理器時間,不涉 TCP 連線狀態 | 刻意不套(不受狀態錯置影響;失敗仍為 `null`,未與無人監聽區分:tasklist 取不到之原因不屬本規則) |
+| `src/WScanStress.mjs` 兩處 `snapProcs` | 施壓前、後各 `log` 失敗行程 | 已套 |
+| `src/report.mjs` `cpuOf`、`memTxt`、明細 | `error` 者不計並列原因 | 已套 |
+| 純計數連線 | 本套件無(`k6` 之連線失敗比例取自 k6 自己的 `http_req_failed` 指標,不讀 netstat) | 不涉及 |
+
+- 對應測試:`unit-procStat.test.mjs`(替身〈netstat 有列〉〈狀態錯置〉〈進入或對外連線反列 LISTENING〉〈netstat 漏列〉〈兩者皆查無〉〈查詢失敗〉〈多 PID〉〈埠號不合法〉;真實〈自己的監聽〉〈0.0.0.0、::〉〈系統資料夾不存在之真實失敗〉;`snapProcs`、`listSnapErrors`)、`unit-report.test.mjs`(`error` 者之 `cpuOf`、明細)、`unit-WScanStress.test.mjs`(查詢失敗之呼叫鏈:日誌、`sys.json`、報告);替身為 spawnSync 形(`test/tools/portExec.mjs`).
+
 ## 2. 規則 → 測試對照
 
 | 規則 | 測試檔 | 案例 |
@@ -147,6 +165,7 @@
 | R13 | `unit-report.test.mjs`、`unit-compare.test.mjs` | fixtures 在 `test/fixtures/run`(唯讀,有雜湊快照);級距不完整/損毀/排序/零門檻/邊界 |
 | 擷取 | `unit-capture.test.mjs` | 實擷需 playwright 之 chromium;事件處理用假瀏覽器(階段歸屬、事件錯誤、排空、fpBase) |
 | R14 | `unit-binManifest.test.mjs`、`api-ensureBins.test.mjs`、`unit-genBinManifest.test.mjs`、`unit-WScanStress.test.mjs` | 清單與打包(T1/T2)、取得(T3~T8)、主函數接線、更新工具、真 k6 經鏡像實跑 |
+| R15 | `unit-procStat.test.mjs`、`unit-report.test.mjs`、`unit-WScanStress.test.mjs` | 依埠找行程:替身(netstat 有列、狀態錯置、反列 LISTENING、漏列、查詢失敗、多 PID、埠號不合法)＋真實監聽＋真實失敗;`{error}` 之報告;呼叫鏈(日誌、sys.json、報告) |
 
 ## 3. 破壞性變更紀錄
 
@@ -162,4 +181,10 @@
   ①k6 改經 `ensureBins`(wsemi `fsEnsureBins`)依 `bin/manifest.json` 取得並校驗;移除 `src/download.mjs`(`ensureTool`/`ensureAllTools`/`findLatestCached`/`installVerDir`/`cmpVerDesc`)與 `config.mjs` 之 `TOOLS`、`test/unit-download.test.mjs`.
   ②移除選項 `fdTools`(k6 存放資料夾);快取改 `<套件根>/bin-cache/<sha256>/k6.exe`,位置由 `W_BIN_CACHE`/`ensureBins({ cacheDir })` 決定;給了 `fdTools` 不報錯但不讀取(有測試);`fdOut/tools/` 不再產生.
   ③`offline: true` 改為「只用快取與 `W_BIN_MIRROR`」,不再「沿用快取中最新版本」(缺清單所載版本之 k6 → `E_OFFLINE_MISSING`).
+- 第 3 次(2026-10-30,依埠找監聽行程改經 wsemi 1.9.32 之 `execProcessPortPidsSync`,原則 14:不留相容層;版本未動;詳 R15):
+  ①相依 `wsemi` 升 `^1.9.32`.
+  ②`src/procStat.mjs`(內部模組,不經主函數匯出)之 `pidOfPort(port)`:回傳由 PID 字串(找不到與查詢失敗皆 `''`)改為 PID 數字陣列(由小到大,`[]`＝已確認無人),查詢失敗與埠號不合法改為拋錯;埠號須為 Number 整數(原 `Number(port)` 轉換,字串型數字不再接受);`snapProcs(kpSvcPort, opt)` 新增查詢失敗之 `{ error }` 形;新增 `listSnapErrors`.
+  ③`sys.json` 之 `procBefore`、`procAfter` 之值新增 `{ error: <原因> }` 形(舊形 `{pid,memMb,cpuSec}`、`null` 不變,`pid` 仍為字串);報告明細新增「施壓前/後查詢監聽行程失敗」列;日誌新增同義訊息.
+  ④多個行程監聽同一埠:原取 `netstat` 輸出中第一個符合列,現取 PID 最小者.
+  ⑤本機 OS(netstat 漏列新起之監聽)上,修前 `procPorts` 之資源欄全為 `-`(誤判無人監聽),修後可取得;代價為每埠每次查詢約 1 秒(施壓前、後各一次).
   ④新增 `WScanStress.ensureBins`、`src/ensureBins.mjs`、環境變數 `W_BIN_CACHE`/`W_BIN_MIRROR`/`W_BIN_OFFLINE`、相依 `wsemi`、`toolg/genBinManifest.mjs`;`npm test` 不再下載 k6(實跑所需之 k6 見 R09 ⑤).

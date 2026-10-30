@@ -113,7 +113,7 @@ test()
     })
 ```
 
-> 僅支援 Windows：k6 為 Windows 版，各行程之資源以 netstat、tasklist 取得。
+> 僅支援 Windows：k6 為 Windows 版；依埠找監聽之行程經 wsemi 之 `execProcessPortPidsSync`（`netstat -ano`，查無或失敗再以 `Get-NetTCPConnection` 確認，判定不依 netstat 之狀態欄），各行程之資源以 tasklist 取得。
 
 #### 設計
 本套件不含任何特定系統之請求、登入或編碼，由使用方以依賴注入提供：
@@ -162,7 +162,7 @@ test()
 | `label` | 結果資料夾之標籤，不得含路徑分隔或檔名禁用字元，預設由模式與級距組成 |
 | `k6Path` | 指定之 k6 執行檔，給予則不經 `ensureBins` 取得（不下載、不校驗） |
 | `offline` | 不連網，只用快取與 `W_BIN_MIRROR` 鏡像內已備之 k6，預設 `false`（`true` 等同環境變數 `W_BIN_OFFLINE=1`） |
-| `procPorts` | 記錄資源之行程鍵名對埠號，例如 `{ api: 8000 }` |
+| `procPorts` | 記錄資源之行程鍵名對埠號，例如 `{ api: 8000 }`；依埠找監聽之行程（同一埠有多個行程監聽時取 PID 最小者），於每級施壓前、後各取樣一次（本機 OS 上 netstat 漏列新起之監聽，改以 `Get-NetTCPConnection` 確認，每埠每次約 1 秒）。無人監聽該埠者，`sys.json` 為 `null`、報告資源欄為 `-`；查詢本身失敗者，`sys.json` 為 `{ "error": "<原因>" }`，並印於日誌、列於報告該級明細（壓測照常完成） |
 | `labels` | 請求分組、計時與行程之顯示名稱 |
 | `meta` | 附加於 meta.json 之使用方資訊物件，或於取得 session 與情境後產生之函數（傳入 `{ sessions, scenario }`）；不得含 session 之值 |
 | `quiet` | 不將 k6 之輸出顯示於主控台（一律寫入 k6.log），預設 `false` |
@@ -204,6 +204,8 @@ k6 為單一執行檔，不需安裝；k6 腳本（`src/k6Scenario.js`）不引�
 - `offline: true` 之語意為「只用快取與 `W_BIN_MIRROR` 鏡像」；無法連網時不再「自動沿用快取中最新版本」，快取或鏡像沒有清單所載版本之 k6 時改為拒絕（`E_OFFLINE_MISSING`）。
 - 新增 `WScanStress.ensureBins` 與 `w-scan-stress/src/ensureBins.mjs`；新增環境變數 `W_BIN_CACHE`、`W_BIN_MIRROR`、`W_BIN_OFFLINE`；新增相依 `wsemi`。
 - 受影響之下游：以 `fdTools` 預放 k6 之使用方（含內網部署腳本），以及自行讀取 `fdOut/tools/k6/` 之程式。
+- 依埠找監聽之行程（`procPorts`）改經 wsemi 1.9.32 之 `execProcessPortPidsSync`（相依 `wsemi` 升至 `^1.9.32`）：原只認 `netstat -ano` 中狀態為 `LISTENING` 之列，在本機 OS（Windows 11 26300 ＋ KB5127936）上 TCP 狀態值錯置、新起之監聽不被 netstat 列出，會把存活之服務判為無人監聽（資源欄全為 `-`）；現不依狀態欄，netstat 查無或失敗時以 `Get-NetTCPConnection` 確認。
+- `src/procStat.mjs`（內部模組，不經主函數匯出）介面改變：`pidOfPort(port)` 由回傳 PID 字串（找不到與查詢失敗皆為 `''`）改為回傳 PID 數字陣列（由小到大，`[]` 為已確認無人監聽），查詢失敗與埠號不合法改為拋錯；`snapProcs` 於查詢失敗者記為 `{ error }`（`sys.json` 之 `procBefore`、`procAfter` 新增此形，舊形 `{pid,memMb,cpuSec}`、`null` 不變；`pid` 仍為字串），新增 `listSnapErrors`。直接 import `w-scan-stress/src/procStat.mjs` 之使用方須改。
 
 #### 擷取（`src/capture.mjs`）
 以瀏覽器（playwright）依注入之步驟操作網頁，記錄網頁送往各服務之請求，作為組成情境之依據；網頁改版後重新擷取並與上次比對。登入狀態由 `prepare` 或步驟注入，請求本體由 `decode` 解讀，瀏覽器亦可由 `launchBrowser` 注入。內網或無法下載 playwright 之瀏覽器時，以 `browserChannel: 'chrome'`（或 `'msedge'`）使用本機已安裝之瀏覽器。
