@@ -2,6 +2,7 @@
 // unit: bin/manifest.json 與外部執行檔之存放(不連網)
 //
 // 對應規格: 外部執行檔之存放下載校驗與離線(制式規格, C:\opensrcOper\dspec) S1、S3、S5、M1~M5、D1、E2、§8 T1、T2
+// 打包檢查另對應: 自有套件之npm發布範圍(同上資料夾)原則 1、4 與原則 2〈套件測試之 npm 包檢查〉①(不得入包只列外部執行檔與壓縮檔等; sgud/、test/tools/ 隨包)
 // 本套件為主幹模式(floating)之廠商檔 k6: 清單記版本標籤之資產網址(不得 releases/latest)與 zip、解出之 k6.exe 之校驗值; k6 不鏡像入 repo, 故 T2 改驗清單網址之形式
 //
 import { strict as assert } from 'assert'
@@ -97,7 +98,7 @@ describe('bin/manifest.json', function () {
         assert.ok(attr.trim().endsWith('binary: set'), attr)
     })
 
-    it('S1、S5、T1: npm 包內不含外部執行檔與壓縮檔, bin/ 下只有 manifest.json', function () {
+    it('S1、S5、T1、npm發布範圍原則2〈套件測試之npm包檢查〉: npm 包內不含外部執行檔與壓縮檔等(bin/ 下只有 manifest.json), sgud/ 與 test/tools/ 依版控隨包', function () {
         //先放誘餌檔(缺忽略規則時確定性變紅): bin/、快取夾、測試暫存夾各放一個探針檔, 測試平行執行時他檔之暫存檔亦不得影響本案
         fs.mkdirSync(fdt, { recursive: true })
         fs.writeFileSync(`${fdt}/probe.exe`, 'x')
@@ -107,13 +108,19 @@ describe('bin/manifest.json', function () {
         const r = JSON.parse(execSync('npm pack --dry-run --json', { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }))
         const info = Array.isArray(r) ? r[0] : Object.values(r)[0] //npm 11 以前為陣列, npm 12 起為以套件名為鍵之物件
         const fps = info.files.map((v) => v.path)
-        //規則(S1): 無 exe、dll、msi、zip、7z、分割檔
-        assert.deepEqual(fps.filter((v) => /\.(exe|dll|msi|zip|7z|\d{3})$/i.test(v)), [])
+        //規則(S1; npm發布範圍原則2①): 不得入包者只列外部執行檔與壓縮檔(exe、dll、node、msi、zip、7z、gz、tgz、分割檔)
+        assert.deepEqual(fps.filter((v) => /\.(exe|dll|node|msi|zip|7z|gz|tgz|\d{3})$/i.test(v)), [])
         //規則(S1): bin/ 與 bin-cache/ 下只有 bin/manifest.json
         assert.deepEqual(fps.filter((v) => v.startsWith('bin/') || v.startsWith('bin-cache/')), ['bin/manifest.json'])
-        //規則(S5): 測試暫存夾、指引文件夾不入包; 無舊的下載模組與舊路徑檔
-        assert.deepEqual(fps.filter((v) => v.startsWith('test/_tmp/') || v.startsWith('sgud/')), [])
+        //規則(S5; npm發布範圍原則2①): 測試暫存夾、暫存區 tmp/、給 agent 之指引檔 CLAUDE*.md、.env 不入包; 無舊的下載模組與舊路徑檔
+        assert.deepEqual(fps.filter((v) => v.startsWith('test/_tmp/') || /(^|\/)tmp\//.test(v) || /(^|\/)CLAUDE[^/]*\.md$/.test(v) || /(^|\/)\.env$/.test(v)), [])
         assert.deepEqual(fps.filter((v) => v === 'src/download.mjs' || (/^src\/k6/i.test(v) && v.endsWith('.exe'))), [])
+        //規則(npm發布範圍原則1、4): npm 包＝git 版控之內容, sgud/ 一律隨包(至少含 state.md); test/tools/ 下現有之檔(下游深層取用)全數隨包
+        assert.ok(fs.existsSync('sgud/state/state.md'))
+        assert.ok(fps.includes('sgud/state/state.md'), 'sgud/state/state.md is not in the npm pack list')
+        const toolFps = fs.readdirSync('test/tools').map((v) => `test/tools/${v}`).filter((v) => fs.statSync(v).isFile())
+        assert.ok(toolFps.length > 0)
+        assert.deepEqual(toolFps.filter((v) => !fps.includes(v)), [])
     })
 
 })

@@ -13,9 +13,11 @@ test/output
 sessions_pending*.json
 .manifest.json
 
+# 外部執行檔之快取(外部執行檔規格 S5)
+/bin-cache/
 
-# 外部執行檔不入 npm 包, 只留 bin/manifest.json(清單); 快取與測試暫存夾不入包(外部執行檔規格 S1、S5)
+# 以下為自有套件之npm發布範圍 原則2 第1條(外部執行檔與其附屬)之排除項, 其餘(sgud/、test/tools/ 等)依原則1、4 隨包
+# 外部執行檔不入 npm 包, 只留 bin/manifest.json(清單); 測試暫存夾可能存放執行檔副本, 不入包(外部執行檔規格 S1、S5)
 /bin/*
 !/bin/manifest.json
-/bin-cache/
 /test/_tmp/

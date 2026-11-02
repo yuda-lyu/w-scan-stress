@@ -26,6 +26,8 @@
 
 ## 最近一次驗證
 
+- 2026-11-02(pk-scan-stress,npm 包檢查對齊 dspec〈自有套件之npm發布範圍〉原則 2〈套件測試之 npm 包檢查〉①):`unit-binManifest` 之 npm 包案改為「不得入包」只列外部執行檔與壓縮檔等、改斷言 `sgud/state/state.md` 與 `test/tools/` 隨包(修前紅:舊斷言 `sgud/` 不在包內;修後綠);`.npmignore` 首段改為 `.gitignore` 逐行抄錄(入包清單前後同為 98 檔);變異(假 `.dll`/`.exe`、排除 `sgud`/`test/tools`、移除 `CLAUDE*.md` 列)皆紅;全套 `npm test` 159 通過.本套件無執行期大小上限斷言(`src/`+`dist/`+`bin/` 實測 392889 位元組),待主控裁定是否新增.報告 `C:\opensrcOper\dnow\20261102182000\agent-out\pk-scan-stress-修正報告.md`.未發布.
+
 - 2026-10-30(stress01,依埠找行程改 wsemi):修前紅(舊 `pidOfPort` 對自己的監聽 0/15)→ 修後綠(15/15);`unit-procStat`/`unit-report`/`unit-WScanStress` 通過;變異與全套 `npm test` 結果見報告 `C:\opensrcOper\dnow\20261030064553\agent-out\stress01-修正報告.md`.未發布(版本仍為 1.0.3 之 `package.json`,發布為使用者作業).
 
 - 2026-10-29(bin-scanstress):新測試 `unit-binManifest`、`api-ensureBins`、`unit-genBinManifest`、`unit-docs` 與 `unit-WScanStress` 通過;變異 24 項全被殺;真實連網首次使用(主幹清單 404 → 退基準清單 → 下載 zip → 解出 → 校驗)4.7 秒;`node C:/opensrcOper/tools/scan-bins.mjs --only w-scan-stress` 為 OK;全套 `npm test` 結果見報告.
