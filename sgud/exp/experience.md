@@ -16,6 +16,7 @@
 - **驗證 k6 接受之格式用 `k6 inspect <腳本>`**(不真的跑):`export let options = { scenarios: { a: { executor: 'ramping-vus', stages: [{ target: 1, duration: '<值>' }] } } }`,能印出 options 即接受,拋 `could not initialize` 即拒收.裸數字(如 `'30'`)k6 視為毫秒.
 - **假瀏覽器測 capture 之事件處理**:以 `EventEmitter` 當 `page`(`emit('requestfinished', 假 req)`),經 `launchBrowser` 注入,即可確定性地測階段歸屬、事件錯誤、排空、`fpBase` 等競態,免真瀏覽器;還原修正後測試會轉紅(已做變異驗證).
 - 工具輸出的反斜線:以 shell heredoc 寫入含 `\\` 的程式碼時反斜線可能被折半(曾使測試字串少一個 `\`);含跳脫字元的程式碼一律用 Write/Edit 工具,寫後 Grep 回驗.
+- **瀏覽器啟動改經 w-playwright 之遷移(2026-11-13,排程第 442 項;規則 R16)**:①**接線測試的「修前紅」不必啟動任何瀏覽器**:修前 `capture` 仍直接用 Playwright,若照常跑會真的起 headless shell;改為先裝好 `w-playwright`(與舊 `playwright` 並存)、寫測試後,以環境變數 `PLAYWRIGHT_BROWSERS_PATH=<空資料夾>` 跑 `--grep 接線`——直接引用 Playwright 者找不到執行檔而失敗(`Executable doesn't exist`,紅),已改經 w-playwright 者走 `setBrowserTypeForTest` 替身而不受影響.該變數在 Playwright 載入時讀取,須於行程啟動前設(`PLAYWRIGHT_BROWSERS_PATH=… node quiet-run.mjs …`,子行程繼承).②測試用之 `executablePath` 一律指向不存在之檔案(通道 `msedge` 的轉傳案也如此):接線失效時 Playwright 以執行檔優先、因缺檔而失敗,不會起真 Edge;這使得「通道轉傳」可在不安裝、不啟動 Edge 下測.③變異驗證不必起瀏覽器:把 `capture` 改回直接引用 `playwright-core`(R-PW-ONLY 掃描與接線案轉紅)、刪除 `executablePath`/`channel` 轉傳行(通道案轉紅),皆在空瀏覽器路徑下跑,三項皆被抓到.④`import wpw from 'w-playwright'` 於 mocha ESM 可用(主檔為 UMD,default 互通);`setBrowserTypeForTest` 之替身不呼叫 `next` 即不會啟動瀏覽器.⑤`W_PLAYWRIGHT_LOGON_GUARD=1` 時,有頭/通道的替身案每案多約 70 毫秒(守門在呼叫替身前先讀一次錯誤次數,讀取為唯讀),headless shell 路徑不讀.⑥盤點正則本身寫在測試原始碼中時,正例字串須拆開組成(如以 `${q('playwright')}` 拼),否則盤點會命中測試檔自己.
 
 ## 外部執行檔(k6;2026-10-29 改造,規格見 `C:\opensrcOper\dspec\外部執行檔之存放下載校驗與離線.md`)
 

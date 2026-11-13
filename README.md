@@ -206,9 +206,18 @@ k6 為單一執行檔，不需安裝；k6 腳本（`src/k6Scenario.js`）不引�
 - 受影響之下游：以 `fdTools` 預放 k6 之使用方（含內網部署腳本），以及自行讀取 `fdOut/tools/k6/` 之程式。
 - 依埠找監聽之行程（`procPorts`）改經 wsemi 1.9.32 之 `execProcessPortPidsSync`（相依 `wsemi` 升至 `^1.9.32`）：原只認 `netstat -ano` 中狀態為 `LISTENING` 之列，在本機 OS（Windows 11 26300 ＋ KB5127936）上 TCP 狀態值錯置、新起之監聽不被 netstat 列出，會把存活之服務判為無人監聽（資源欄全為 `-`）；現不依狀態欄，netstat 查無或失敗時以 `Get-NetTCPConnection` 確認。
 - `src/procStat.mjs`（內部模組，不經主函數匯出）介面改變：`pidOfPort(port)` 由回傳 PID 字串（找不到與查詢失敗皆為 `''`）改為回傳 PID 數字陣列（由小到大，`[]` 為已確認無人監聽），查詢失敗與埠號不合法改為拋錯；`snapProcs` 於查詢失敗者記為 `{ error }`（`sys.json` 之 `procBefore`、`procAfter` 新增此形，舊形 `{pid,memMb,cpuSec}`、`null` 不變；`pid` 仍為字串），新增 `listSnapErrors`。直接 import `w-scan-stress/src/procStat.mjs` 之使用方須改。
+- `src/capture.mjs` 改經自有套件 `w-playwright` 啟動瀏覽器（移除相依 `playwright`，新增 `w-playwright ^1.0.1`；本套件不再帶入 `playwright`，改經 `w-playwright` 帶入 `playwright-core` 精確版 1.64.1）：①預設啟動之命令列一律含守門參數（見〈擷取〉）；②啟動失敗之 reject 由 Playwright 原錯誤改為 `w-playwright` 之固定詞彙錯誤（帶 `code`，如 `E_BROWSER_MISSING`、`E_ENV`、`E_LAUNCH`；不再有 `Executable doesn't exist … npx playwright install` 之訊息）；③`PWDEBUG`（inspector 值）與 `SELENIUM_REMOTE_URL` 有值即拒絕（`E_ENV`）；④`launchBrowser` 之注入者須注入 `wpw.launchChromium`。受影響之下游：以錯誤訊息字串判斷「缺瀏覽器」者（改判 `err.code`），以及依賴本套件帶入 `playwright`（自行 `import 'playwright'`）者（須自行宣告）。
 
 #### 擷取（`src/capture.mjs`）
-以瀏覽器（playwright）依注入之步驟操作網頁，記錄網頁送往各服務之請求，作為組成情境之依據；網頁改版後重新擷取並與上次比對。登入狀態由 `prepare` 或步驟注入，請求本體由 `decode` 解讀，瀏覽器亦可由 `launchBrowser` 注入。內網或無法下載 playwright 之瀏覽器時，以 `browserChannel: 'chrome'`（或 `'msedge'`）使用本機已安裝之瀏覽器。
+以瀏覽器依注入之步驟操作網頁，記錄網頁送往各服務之請求，作為組成情境之依據；網頁改版後重新擷取並與上次比對。登入狀態由 `prepare` 或步驟注入，請求本體由 `decode` 解讀，瀏覽器亦可由 `launchBrowser` 注入（注入者須經 `w-playwright` 之 `launchChromium` 啟動，例如 `launchBrowser: () => wpw.launchChromium({ headless: true })`，否則瀏覽器不含下述守門參數）。
+
+瀏覽器之啟動與安裝一律經自有套件 [w-playwright](https://github.com/yuda-lyu/w-playwright)：
+- 本套件不直接依賴 `playwright`／`playwright-core`；安裝本套件即經 `w-playwright` 帶入 `playwright-core` 精確版 1.64.1，不需另裝。
+- 預設使用 Playwright 受管之 headless shell。未安裝時先執行 `await wpw.ensureChromium()`（`import wpw from 'w-playwright'`）；**不要用 `npx playwright install`**（依賴樹中他版被提升時會下載到不同版本之瀏覽器）。擷取不自動下載：缺檔時 `capture` reject 帶 `code: 'E_BROWSER_MISSING'` 之錯誤。
+- 離線：於可連網之電腦以同版 `w-playwright` 執行 `ensureChromium()`，把 Playwright 之瀏覽器資料夾（Windows 預設 `%LOCALAPPDATA%\ms-playwright`）複製到目標機，並設環境變數 `PLAYWRIGHT_BROWSERS_PATH` 指向該資料夾（須在載入本套件前設定）。
+- 內網或無法下載受管瀏覽器時，以 `browserChannel: 'chrome'`（或 `'msedge'`）使用本機已安裝之瀏覽器，**須自行安裝 Google Chrome／Microsoft Edge**（`wpw.findSystemChrome()` 或 `wpw.findSystemChrome({ channel: 'msedge' })` 以檔案存在判定位置，不啟動、不代表可啟動）。驗證狀態依 `w-playwright`（2026-11-13，Windows 11，無頭）：Chrome 157.0.8103.78 與 Edge 157.0.4341.46 已驗；有頭、beta／dev／canary 通道與其他版本未驗，不視為已證。本套件之測試不啟動真 Chrome、Edge 或完整 Chromium。
+- **守門參數**：Windows 上 Chromium 153 起，每啟動一個新的瀏覽器根行程，即以無效密碼替目前使用者呼叫一次 `LogonUser`（錯誤密碼次數加 1；本機原則下 10 分鐘內 10 次即鎖定帳號）。經 `w-playwright` 啟動時，命令列一律只含一個 `--disable-features`（Playwright 預設清單＋`AutofillAiWalletPrivatePasses`），停用該功能即不再發生；本套件不提供停用此守門之選項。
+- 不支援環境變數 `PWDEBUG`（inspector 值）與 `SELENIUM_REMOTE_URL`（會使守門失效）：有值即 reject `E_ENV`。
 
 ```alias
 import capture from 'w-scan-stress/src/capture.mjs'

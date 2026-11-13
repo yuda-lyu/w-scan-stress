@@ -1,11 +1,11 @@
-// 擷取:以瀏覽器(playwright)依使用方注入之步驟操作網頁, 記錄網頁送往各服務之請求, 作為組成情境(scenario)之依據;
+// 擷取:以瀏覽器(經 w-playwright 啟動之 Chromium 系瀏覽器)依使用方注入之步驟操作網頁, 記錄網頁送往各服務之請求, 作為組成情境(scenario)之依據;
 // 網頁改版後重新擷取, 並與上次之擷取結果比對. 本模組不含任何特定系統之登入或編碼: 登入狀態由 opt.prepare 注入, 請求本體由 opt.decode 解讀
 //
 // 請求本體: 網頁以 XMLHttpRequest 送出 Blob 或 ArrayBuffer 時, playwright 之 postDataBuffer 取不到, 故於頁面內攔截 XMLHttpRequest.send 讀出本體回傳,
 //   並加標頭 X-Cap-Id 供對應(opt.interceptXhrBody 為 false 時不攔截; 跨來源之請求加標頭會觸發預檢, 須伺服器允許該標頭)
 import fs from 'node:fs'
 import { dirname } from 'node:path'
-import { chromium } from 'playwright'
+import wpw from 'w-playwright'
 
 
 /**
@@ -54,7 +54,10 @@ export function diffCapture(reqsBase, reqs, opt = {}) {
  * 依序執行opt.steps，每步為一個階段(S1_<名稱>、S2_<名稱>…)，期間完成之請求記入該階段；步驟失敗時印出訊息並繼續後續步驟，失敗之階段記於failedSteps；
  * 只記錄opt.origins內之來源，其中XHR與fetch視為服務之請求逐筆記錄，其餘(網頁、腳本、樣式、圖片等)只計數
  *
- * 內網或無法下載playwright瀏覽器時，以opt.browserChannel使用本機已安裝之Chrome('chrome')或Edge('msedge')，或以opt.executablePath指定瀏覽器
+ * 瀏覽器一律經w-playwright之launchChromium啟動(命令列恆含停用AutofillAiWalletPrivatePasses之守門參數，避免Windows上Chromium每次啟動即使目前使用者之錯誤密碼次數加1)；
+ * 預設用Playwright受管之headless shell，缺檔時reject帶code為E_BROWSER_MISSING之錯誤(不自動下載)，請先執行`await wpw.ensureChromium()`(`import wpw from 'w-playwright'`)；
+ * 內網或無法下載受管瀏覽器時，以opt.browserChannel使用本機已安裝之Chrome('chrome')或Edge('msedge')(須自行安裝；w-playwright已驗之版本見其README〈驗證狀態〉，未列者不視為已證)，或以opt.executablePath指定瀏覽器；
+ * 離線時以環境變數PLAYWRIGHT_BROWSERS_PATH指向預先複製之受管瀏覽器資料夾(須在載入本模組前設定)
  *
  * @param {String} fpOut 輸入擷取結果(JSON)之輸出路徑字串，內容為{time,url,nStatic,failedSteps,reqs}
  * @param {Object} opt 輸入設定物件
@@ -71,9 +74,9 @@ export function diffCapture(reqsBase, reqs, opt = {}) {
  * @param {Boolean} [opt.headless=true] 輸入是否無頭執行瀏覽器布林值
  * @param {String} [opt.browserChannel=''] 輸入使用本機瀏覽器之通道字串，例如'chrome'、'msedge'
  * @param {String} [opt.executablePath=''] 輸入瀏覽器執行檔路徑字串
- * @param {Function} [opt.launchBrowser] 輸入啟動瀏覽器之函數，回傳playwright之Browser(或其Promise)，給予則不使用opt.headless、opt.browserChannel、opt.executablePath，擷取結束時關閉之
+ * @param {Function} [opt.launchBrowser] 輸入啟動瀏覽器之函數，回傳playwright之Browser(或其Promise)，給予則不使用opt.headless、opt.browserChannel、opt.executablePath，擷取結束時關閉之；注入者須經w-playwright之launchChromium啟動(例如`() => wpw.launchChromium({ headless: true })`)，未經其啟動之瀏覽器不含守門參數
  * @param {Object} [opt.viewport={width:1600,height:900}] 輸入視窗大小物件
- * @returns {Promise} 回傳Promise，resolve回傳{fpOut,nReqs,nStatic,failedSteps,diff}，failedSteps為失敗步驟之階段名稱陣列，diff為與上次之比對(未給opt.fpBase則為null)，reject回傳錯誤訊息
+ * @returns {Promise} 回傳Promise，resolve回傳{fpOut,nReqs,nStatic,failedSteps,diff}，failedSteps為失敗步驟之階段名稱陣列，diff為與上次之比對(未給opt.fpBase則為null)，reject回傳錯誤；預設啟動瀏覽器失敗時為w-playwright之錯誤(帶code，如E_BROWSER_MISSING、E_ENV、E_LOGON_GUARD、E_LAUNCH)
  */
 async function capture(fpOut, opt = {}) {
     const url = String(opt.url || '')
@@ -92,7 +95,7 @@ async function capture(fpOut, opt = {}) {
         const lo = { headless: opt.headless !== false }
         if (opt.browserChannel) lo.channel = opt.browserChannel
         if (opt.executablePath) lo.executablePath = opt.executablePath
-        browser = await chromium.launch(lo)
+        browser = await wpw.launchChromium(lo)
     }
     const reqs = []
     const nStatic = {}

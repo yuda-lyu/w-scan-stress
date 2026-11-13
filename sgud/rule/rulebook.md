@@ -20,7 +20,7 @@
 | 文字報告、對照 | `src/report.mjs`、`src/compare.mjs` | — |
 | 瀏覽器擷取 | `src/capture.mjs`(經 `w-scan-stress/src/capture.mjs` 引用,不在 `dist` 內) | — |
 
-- 已知限制:①僅 Windows(k6 之 Windows 版、依埠找行程經 wsemi `execProcessPortPidsSync`〔`netstat`＋`Get-NetTCPConnection`,見 R15〕、`tasklist`、`tar.exe`).②主函數捕捉不到 Ctrl+C/行程被終止:此時 `finally` 不執行,session 未釋放且結果資料夾內 `.manifest.json`(含 session 之值)留存,須使用方自行處理(README〈Notes〉).③`capture.mjs` 需 `playwright` 與其瀏覽器,`dist`(`main`)不含之.④k6 取得走清單之版本標籤資產網址(不查 GitHub API),主幹模式連網時每次呼叫先取一次 `raw.githubusercontent.com` 之主幹清單(2026-10-29 起,見 R14).
+- 已知限制:①僅 Windows(k6 之 Windows 版、依埠找行程經 wsemi `execProcessPortPidsSync`〔`netstat`＋`Get-NetTCPConnection`,見 R15〕、`tasklist`、`tar.exe`).②主函數捕捉不到 Ctrl+C/行程被終止:此時 `finally` 不執行,session 未釋放且結果資料夾內 `.manifest.json`(含 session 之值)留存,須使用方自行處理(README〈Notes〉).③`capture.mjs` 經 `w-playwright`(自有套件,帶入 `playwright-core` 精確版 1.64.1;見 R16)啟動 Chromium 系瀏覽器並需其瀏覽器,`dist`(`main`)不含之.④k6 取得走清單之版本標籤資產網址(不查 GitHub API),主幹模式連網時每次呼叫先取一次 `raw.githubusercontent.com` 之主幹清單(2026-10-29 起,見 R14).
 
 ## 1. 規則(程式碼須長成什麼樣)
 
@@ -108,7 +108,7 @@
 
 ### R11 打包
 
-- 內容:`toolg/gDistRollup.mjs` 之 `fns` 為 `WScanStress.mjs`;`globals` 與 `external` 須涵蓋主檔可達模組之全部內建模組:`node:path`、`node:url`、`node:os`、`node:fs`、`node:fs/promises`、`node:child_process`(本套件 src),以及 wsemi `fsEnsureBins` 使用之未加前綴者:`path`、`url`、`os`、`fs`、`child_process`、`crypto`、`stream`、`stream/promises`(外部執行檔規格 §9;wsemi 被打包進 UMD,內建模組須外部化);`playwright` 只被 `capture.mjs` 使用,該檔不在主檔可達範圍,故不列入.`dist` 可由發布流程重產,`docs` 不手動產.
+- 內容:`toolg/gDistRollup.mjs` 之 `fns` 為 `WScanStress.mjs`;`globals` 與 `external` 須涵蓋主檔可達模組之全部內建模組:`node:path`、`node:url`、`node:os`、`node:fs`、`node:fs/promises`、`node:child_process`(本套件 src),以及 wsemi `fsEnsureBins` 使用之未加前綴者:`path`、`url`、`os`、`fs`、`child_process`、`crypto`、`stream`、`stream/promises`(外部執行檔規格 §9;wsemi 被打包進 UMD,內建模組須外部化);`w-playwright` 只被 `capture.mjs` 使用,該檔不在主檔可達範圍(`dist` 不含 playwright 或 w-playwright),故 `external` 不列入(2026-11-13 自 `playwright` 改 `w-playwright`,`toolg/gDistRollup.mjs` 無需改動).`dist` 可由發布流程重產,`docs` 不手動產.
 - 盤點:`grep -hE "^import .* from '" src/WScanStress.mjs src/ensureBins.mjs src/config.mjs src/scenario.mjs src/k6.mjs src/procStat.mjs src/report.mjs | sed -E "s/.*from //" | sort -u` 與 `grep -hE "^import .* from '[a-z/]+'" node_modules/wsemi/src/fsEnsureBins.mjs`(與 gDistRollup 之 `external` 比對);打包驗證須另指定輸出夾至 `./tmp/`(見經驗),不覆寫 `dist/`:`require` 該 UMD 須得函數且 `.ensureBins` 為函數.
 
 ### R13 報告與對照:缺值、損毀與邊界
@@ -152,6 +152,22 @@
 
 - 對應測試:`unit-procStat.test.mjs`(替身〈netstat 有列〉〈狀態錯置〉〈進入或對外連線反列 LISTENING〉〈netstat 漏列〉〈兩者皆查無〉〈查詢失敗〉〈多 PID〉〈埠號不合法〉;真實〈自己的監聽〉〈0.0.0.0、::〉〈系統資料夾不存在之真實失敗〉;`snapProcs`、`listSnapErrors`)、`unit-report.test.mjs`(`error` 者之 `cpuOf`、明細)、`unit-WScanStress.test.mjs`(查詢失敗之呼叫鏈:日誌、`sys.json`、報告);替身為 spawnSync 形(`test/tools/portExec.mjs`).
 
+### R16 Chromium 系瀏覽器之啟動一律經 w-playwright(2026-11-13,排程第 442 項;同 w-playwright 帳本 R-PW-ONLY、R-PW-WIRING)
+
+- 背景:Windows 上 Chromium 153 起,每啟動一個新的瀏覽器根行程即以無效密碼替目前使用者呼叫一次 `LogonUser`(錯誤密碼次數加 1,10 分鐘內 10 次即鎖定帳號);停用功能 `AutofillAiWalletPrivatePasses` 即不再發生,而 Chromium 對兩個 `--disable-features` 只取最後一個、Playwright 自帶一串預設,故啟動參數須合併為恰一串——此合併與 `playwright-core` 之版本(精確 1.64.1)歸 `w-playwright` 單一擁有.
+- 內容:①本套件(`src`、`test`、`toolg`、根目錄之 `.mjs`/`.js`)不得以靜態匯入、動態匯入、`require` 引用 `playwright`/`playwright-core`;`package.json` 不得宣告 `playwright`/`playwright-core`,宣告 `w-playwright`(`dependencies`:`src/capture.mjs` 於執行期使用).②`capture` 預設啟動點只有一處(`src/capture.mjs` 之 `wpw.launchChromium(lo)`,`lo` 為 `headless`、`channel`、`executablePath`);不另加啟動參數,不自動安裝(`autoInstall` 維持 w-playwright 預設 false,缺檔 reject `E_BROWSER_MISSING`).③`opt.launchBrowser` 之注入者須注入 `wpw.launchChromium`(jsdoc 與 README 明示;本套件之測試注入者亦然).④本套件之測試不啟動真 Chrome、Edge 或完整 Chromium:接線測試以 `wpw.setBrowserTypeForTest` 之替身(不呼叫 `next`)斷言送出之選項含守門(`args` 最後一個元素為恰一個 `--disable-features` 且含 `AutofillAiWalletPrivatePasses`)並斷言替身確被呼叫;真啟動只有受管 headless shell(〈實擷〉3 案,不觸發登入失敗計數);測試用之 `executablePath` 一律指向不存在之檔案,即使接線失效 Playwright 亦因缺檔而失敗,不會啟動真瀏覽器.⑤README 須寫(w-playwright 設計 §4 六點):經 w-playwright 帶入 playwright-core 1.64.1、受管瀏覽器以 `ensureChromium()` 取得且不寫 `npx playwright install`、離線以 `PLAYWRIGHT_BROWSERS_PATH`(載入前設定)、真 Chrome/Edge 須自行安裝、一律加入之守門參數與原因、`PWDEBUG`/`SELENIUM_REMOTE_URL` 不支援;Chrome/Edge 之驗證狀態依 w-playwright README〈驗證狀態〉轉述,未列者不視為已證.
+- 盤點(命中須為 0;於套件根執行):`rg -n --glob "*.{mjs,js}" --glob "!**/node_modules/**" --glob "!**/dist/**" "(from\s+|import\(\s*|require\(\s*)['\"\`]playwright(-core)?['\"\`/]" .`;`rg -n "\"playwright(-core)?\"\s*:" package.json`;啟動點全集:`rg -n "wpw\.(launchChromium|launchChromiumPersistent)\(" src`(應只有 `src/capture.mjs` 一處).
+- 站點全集與判準:
+
+| 站點 | 作法 | 判準 |
+| --- | --- | --- |
+| `src/capture.mjs` 預設啟動(未給 `launchBrowser`) | `wpw.launchChromium(lo)` | 已套 |
+| `src/capture.mjs` `opt.launchBrowser`(注入) | 由注入者負責;jsdoc、README 要求注入 `wpw.launchChromium` | 已套(文件)；本套件不啟動 |
+| `test/unit-capture.test.mjs`〈實擷〉第 3 案之注入 | `() => wpw.launchChromium()` | 已套 |
+| `test/` 其餘、`toolg/`、`g.mjs` | 無瀏覽器啟動 | 不涉及 |
+
+- 對應測試:`unit-pwOnly.test.mjs`(盤點正則之正反例與範圍非空、無直接匯入、`package.json` 之宣告)、`unit-capture.test.mjs`〈啟動經 w-playwright(接線)〉(預設啟動點之選項含守門、通道與執行檔轉傳、注入者不經 capture 啟動且注入 `wpw.launchChromium` 者含守門、缺檔之 `E_BROWSER_MISSING`);變異(2026-11-13):改回直接引用 `playwright-core` 啟動、移除 `executablePath` 轉傳、移除 `channel` 轉傳,皆有測試轉紅.
+
 ## 2. 規則 → 測試對照
 
 | 規則 | 測試檔 | 案例 |
@@ -163,7 +179,8 @@
 | R05 | `unit-k6.test.mjs`、`unit-procStat.test.mjs` | spawn 失敗 reject(含日誌不可寫);`gateTriggered`;`pidOfPort`/`procStat`/取樣器 |
 | R06 | `unit-scenario.test.mjs` | `validateScenario` 各案(型別、equals、稀疏陣列、原型名稱、base64) |
 | R13 | `unit-report.test.mjs`、`unit-compare.test.mjs` | fixtures 在 `test/fixtures/run`(唯讀,有雜湊快照);級距不完整/損毀/排序/零門檻/邊界 |
-| 擷取 | `unit-capture.test.mjs` | 實擷需 playwright 之 chromium;事件處理用假瀏覽器(階段歸屬、事件錯誤、排空、fpBase) |
+| 擷取 | `unit-capture.test.mjs` | 實擷需受管之 headless shell(`await wpw.ensureChromium()` 取得);事件處理用假瀏覽器(階段歸屬、事件錯誤、排空、fpBase) |
+| R16 | `unit-pwOnly.test.mjs`、`unit-capture.test.mjs` | 無直接匯入 playwright/playwright-core 與 `package.json` 宣告;預設啟動點經 w-playwright(`setBrowserTypeForTest` 替身,不啟動瀏覽器)、通道與執行檔轉傳、注入、缺檔 `E_BROWSER_MISSING` |
 | R14 | `unit-binManifest.test.mjs`、`api-ensureBins.test.mjs`、`unit-genBinManifest.test.mjs`、`unit-WScanStress.test.mjs` | 清單與打包(T1/T2)、取得(T3~T8)、主函數接線、更新工具、真 k6 經鏡像實跑 |
 | R15 | `unit-procStat.test.mjs`、`unit-report.test.mjs`、`unit-WScanStress.test.mjs` | 依埠找行程:替身(netstat 有列、狀態錯置、反列 LISTENING、漏列、查詢失敗、多 PID、埠號不合法)＋真實監聽＋真實失敗;`{error}` 之報告;呼叫鏈(日誌、sys.json、報告) |
 

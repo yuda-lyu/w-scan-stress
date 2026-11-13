@@ -8,14 +8,16 @@
 //   擷取結果存於 fpOut; 步驟失敗時印出訊息並繼續後續步驟, 失敗之階段記於 failedSteps; 給 fpBase 則與上次比對各階段之請求(以 keyOf 取鍵、skip 者不比對);
 //   給 launchBrowser 則以其回傳之瀏覽器擷取, 結束時關閉之;
 //   請求歸屬於其完成當下之階段(不因處理延遲而移到下一階段); 事件處理之錯誤不成為未處理之 rejection, 收尾時以原錯誤 reject 並關閉瀏覽器;
-//   收尾時排空事件工作(等待期間才完成之請求不遺漏); fpBase 與 fpOut 為同一檔案時先讀取上次結果再覆寫(以假瀏覽器驗證, 不需 playwright 之瀏覽器)
-//   (需 playwright 之 chromium)
+//   收尾時排空事件工作(等待期間才完成之請求不遺漏); fpBase 與 fpOut 為同一檔案時先讀取上次結果再覆寫(以假瀏覽器驗證, 不需瀏覽器);
+//   預設啟動點經 w-playwright 之 launchChromium(以 setBrowserTypeForTest 之替身斷言送出之選項含守門參數, 不啟動瀏覽器; 缺檔之失敗為帶 code 之錯誤);
+//   注入 launchBrowser 者不呼叫 w-playwright(注入者須自行注入 wpw.launchChromium)
+//   (「實擷」需受管之 headless shell: 未安裝時先執行 await wpw.ensureChromium(); 本檔不啟動真 Chrome、Edge 或完整 Chromium)
 //
 import { strict as assert } from 'assert'
 import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
-import { chromium } from 'playwright'
+import wpw from 'w-playwright'
 import capture, { diffCapture, maskUrlDef } from '../src/capture.mjs'
 import startDemoServer from './tools/demoServer.mjs'
 
@@ -156,7 +158,7 @@ describe('capture: 實擷', function () {
             url: demo.url,
             //規則: 給予 launchBrowser 則以其回傳之瀏覽器擷取
             launchBrowser: async () => {
-                browser = await chromium.launch()
+                browser = await wpw.launchChromium()
                 return browser
             },
             //規則: 未給 steps 時預設開啟 opt.url(此處縮短等待)
@@ -313,6 +315,129 @@ describe('capture: 事件處理(假瀏覽器, 不需 playwright 之瀏覽器)', 
         //規則: 上次之結果須在寫入fpOut之前讀取; 同一檔案時不得先覆寫而與自己比對
         assert.deepEqual(r.diff.added, ['S1 | /new'])
         assert.deepEqual(r.diff.removed, ['S1 | /old'])
+    })
+
+})
+
+
+describe('capture: 啟動經 w-playwright(接線; 以 setBrowserTypeForTest 之替身, 不啟動瀏覽器)', function () {
+    this.timeout(30000)
+
+    let fd = path.resolve('./test/_tmp/capture_wiring')
+    let U = 'http://127.0.0.1:8099'
+    let steps = [{ name: 'entry', run: () => {} }]
+
+    before(function () {
+        fs.rmSync(fd, { recursive: true, force: true })
+        fs.mkdirSync(fd, { recursive: true })
+    })
+
+    after(function () {
+        fs.rmSync(fd, { recursive: true, force: true })
+        assert.ok(!fs.existsSync(fd))
+    })
+
+    //fakeBrowser, 只實作 capture 用到之介面
+    let fakeBrowser = () => {
+        let page = new EventEmitter()
+        page.exposeFunction = async () => {}
+        page.addInitScript = async () => {}
+        page.waitForTimeout = async () => {}
+        let browser = {
+            closed: false,
+            newContext: async () => ({ newPage: async () => page }),
+            close: async () => {
+                browser.closed = true
+            },
+        }
+        return browser
+    }
+
+    //withFake, 安裝替身後執行 fn 再還原; 替身之 launch 不呼叫 next, 故不會啟動任何瀏覽器
+    let withFake = async (launch, fn) => {
+        let restore = wpw.setBrowserTypeForTest({ launch })
+        try {
+            return await fn()
+        }
+        finally {
+            restore()
+        }
+    }
+
+    //assertGuard, 斷言 w-playwright 合併後之選項含守門: 命令列恰一個 --disable-features, 為 args 之最後一個元素, 且含 AutofillAiWalletPrivatePasses
+    let assertGuard = (o) => {
+        let ds = o.args.filter((a) => a.startsWith('--disable-features='))
+        assert.equal(ds.length, 1, JSON.stringify(o.args))
+        assert.equal(o.args[o.args.length - 1], ds[0])
+        assert.ok(ds[0].slice('--disable-features='.length).split(',').includes('AutofillAiWalletPrivatePasses'), ds[0])
+    }
+
+    it('預設啟動點(未給 launchBrowser): 經 w-playwright 之 launchChromium, 送出之選項含守門參數, 結束時關閉瀏覽器', async function () {
+        let browser = fakeBrowser()
+        let seen = []
+        await withFake(async (o) => {
+            seen.push(o)
+            return browser
+        }, () => capture(path.join(fd, 'default.json'), { url: U, steps }))
+        //規則: 預設啟動點經 w-playwright(替身確被呼叫, 且只啟動一次)
+        assert.equal(seen.length, 1)
+        //規則: 未給 opt.headless 時無頭; 未給 browserChannel、executablePath 時不指定通道與執行檔
+        assert.equal(seen[0].headless, true)
+        assert.equal(seen[0].channel, undefined)
+        assert.equal(seen[0].executablePath, undefined)
+        //規則: 送出之選項含守門參數(README〈擷取〉: 一律經 w-playwright, 命令列恰一個 --disable-features 且含 AutofillAiWalletPrivatePasses)
+        assertGuard(seen[0])
+        //規則: 除守門外, 啟動參數與 w-playwright 對相同選項合併之結果一致(擷取本身不另加參數)
+        assert.deepEqual(seen[0].args, wpw.getChromiumLaunchOptions({ headless: true }).args)
+        //規則: 擷取結束時關閉瀏覽器
+        assert.equal(browser.closed, true)
+    })
+
+    it('opt.headless、browserChannel、executablePath: 轉傳給 w-playwright(msedge 為 w-playwright 已驗之通道)', async function () {
+        let browser = fakeBrowser()
+        let seen = []
+        //executablePath 指向不存在之檔案: 即使替身未生效, Playwright 亦因找不到執行檔而失敗, 不會啟動 Edge
+        let fp = path.join(fd, 'no-such-browser', 'msedge.exe')
+        await withFake(async (o) => {
+            seen.push(o)
+            return browser
+        }, () => capture(path.join(fd, 'channel.json'), { url: U, steps, headless: false, browserChannel: 'msedge', executablePath: fp }))
+        //規則: opt.headless、opt.browserChannel、opt.executablePath 轉傳為 headless、channel、executablePath
+        assert.equal(seen.length, 1)
+        assert.equal(seen[0].headless, false)
+        assert.equal(seen[0].channel, 'msedge')
+        assert.equal(seen[0].executablePath, fp)
+        //規則: 給了通道與有頭, 守門參數仍在
+        assertGuard(seen[0])
+    })
+
+    it('launchBrowser 注入: 擷取自身不啟動瀏覽器(不呼叫 w-playwright); 注入 wpw.launchChromium 者之選項含守門參數', async function () {
+        let seen = []
+        let launch = async (o) => {
+            seen.push(o)
+            return fakeBrowser()
+        }
+        //規則: 給 launchBrowser 則不使用 opt.headless、opt.browserChannel、opt.executablePath, 擷取自身不呼叫 w-playwright
+        let injected = fakeBrowser()
+        await withFake(launch, () => capture(path.join(fd, 'inject_own.json'), { url: U, steps, launchBrowser: async () => injected, headless: false, browserChannel: 'msedge' }))
+        assert.equal(seen.length, 0)
+        assert.equal(injected.closed, true)
+        //規則: 注入者須注入 w-playwright 之 launchChromium(README〈擷取〉), 其送出之選項含守門參數
+        let r = await withFake(launch, () => capture(path.join(fd, 'inject_wpw.json'), { url: U, steps, launchBrowser: () => wpw.launchChromium({ headless: true }) }))
+        assert.equal(seen.length, 1)
+        assertGuard(seen[0])
+        assert.equal(r.nReqs, 0)
+    })
+
+    it('受管瀏覽器缺檔: reject 帶 code 之錯誤(E_BROWSER_MISSING), 訊息指向 ensureChromium, 不附 Playwright 之原錯誤', async function () {
+        let err = await withFake(async () => {
+            throw new Error('browserType.launch: Executable doesn\'t exist at X:\\no-such\\chrome-headless-shell.exe')
+        }, () => capture(path.join(fd, 'missing.json'), { url: U, steps }).then(() => null, (e) => e))
+        //規則: 啟動失敗之 reject 為 w-playwright 之固定詞彙錯誤(README〈擷取〉: 受管瀏覽器缺檔為 E_BROWSER_MISSING)
+        assert.ok(err)
+        assert.equal(err.code, 'E_BROWSER_MISSING')
+        assert.ok(err.message.includes('ensureChromium'), err.message)
+        assert.ok(!err.message.includes('no-such'), err.message)
     })
 
 })
