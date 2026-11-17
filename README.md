@@ -190,7 +190,20 @@ k6 為單一執行檔，不需安裝；k6 腳本（`src/k6Scenario.js`）不引�
 - 環境變數：
   - `W_BIN_CACHE=<資料夾>`：快取改放 `<資料夾>/w-scan-stress/`（套件所在之 `node_modules` 唯讀時使用，多套件可共用同一資料夾）。
   - `W_BIN_MIRROR=<資料夾或 http(s) 網址>`：內網鏡像，先找鏡像再連 GitHub；結構為 `<鏡像>/w-scan-stress/<sha256>/<檔名>`（最終檔 `k6.exe` 或 zip）。鏡像之檔同樣以清單校驗，不符即不用。
-  - `W_BIN_OFFLINE=1`：不連網，只用快取與鏡像；缺檔時錯誤（`E_OFFLINE_MISSING`）會列出缺哪些檔、sha256、大小與應放之完整路徑。`WScanStress` 之 `offline: true` 與之等效。
+  - `W_BIN_OFFLINE=1`：不連網，只用快取與鏡像；缺檔時拋出 `E_OFFLINE_MISSING`，錯誤訊息只列缺哪些檔之檔名與準備方法（不帶 sha256 與路徑），缺檔之 sha256、大小與應放之位置（`cachePath` 為快取內之路徑、設了鏡像時 `mirrorPath` 為鏡像內之路徑）、來源網址在錯誤物件之 `err.missing[]`，讀取方式見下。`WScanStress` 之 `offline: true` 與之等效。
+- 離線缺檔時之放置位置：自 `err.missing[]` 讀取（每項有 `name`、`sha256`、`size`、`cachePath`、`mirrorPath`、`url`；自 zip 解出者另有 `member` 與 `archive`），把該檔放到 `cachePath` 或 `mirrorPath` 即可：
+
+```alias
+try {
+    await WScanStress.ensureBins()
+}
+catch (err) {
+    if (err.code === 'E_OFFLINE_MISSING') {
+        console.log(err.missing) //[ { name, sha256, size, cachePath, mirrorPath, url, member, archive, ... } ]
+    }
+}
+```
+
 - 離線（內網）部署：
   1. 在可連網之電腦設 `W_BIN_CACHE=<空資料夾>`，呼叫 `WScanStress.ensureBins()` 一次（`node -e "import('w-scan-stress/src/ensureBins.mjs').then((m) => m.default())"`）。
   2. 把該資料夾整個帶到內網電腦，設 `W_BIN_MIRROR=<該資料夾>`（全離線時另設 `W_BIN_OFFLINE=1`）。

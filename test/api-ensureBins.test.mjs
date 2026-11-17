@@ -291,6 +291,8 @@ describe('ensureBins: 取得 k6.exe(合成清單與本機伺服器)', function (
         const cacheDir = newDir('cache')
         const err = await catchErr(() => ensureBins({ cacheDir, fetch: fetchBan, mirror, offline: true }))
         assert.strictEqual(err && err.code, 'E_OFFLINE_MISSING', err && err.message)
+        assert.deepStrictEqual(err.missing.map((v) => [v.name, v.mirrorPath]), [['k6.exe', path.join(mirror, 'w-scan-stress', hashExeA.sha256, 'k6.exe')]]) //被拒用之鏡像檔位置在missing(V20: 不在訊息)
+        assert.ok(!err.message.includes(mirror), err.message)
         assert.deepStrictEqual(cacheFiles(cacheDir), [])
 
         const cacheDir2 = newDir('cache')
@@ -300,30 +302,86 @@ describe('ensureBins: 取得 k6.exe(合成清單與本機伺服器)', function (
         assert.ok(fs.readFileSync(path.join(mirror, 'w-scan-stress', hashExeA.sha256, 'k6.exe')).equals(flip(exeA)))
     })
 
-    it('T6: 離線且無快取無鏡像: E_OFFLINE_MISSING, 訊息含檔名、sha256、大小與應放路徑, 不連網', async function () {
+    //V20(訊息不帶值, 2026-11-18): 訊息只含檔名與準備方法, 不含sha256(解出檔與zip)、大小、快取與鏡像路徑、網址;
+    //  缺檔之名稱、sha256、大小、應放位置、來源改由err.missing[]之結構欄位提供(O3、O5、T6)
+    //wantMissing, 缺檔項之全部欄位(zip內解出之k6.exe: 無直接網址url, 來源為archive(zip)與member), h為清單之解出檔與zip之校驗值
+    let wantMissing = (h, cacheDir, mirror) => {
+        return {
+            name: 'k6.exe',
+            sha256: h.exe.sha256,
+            size: h.exe.size,
+            cachePath: path.join(cacheDir, h.exe.sha256, 'k6.exe'),
+            mirrorPath: mirror ? path.join(mirror, 'w-scan-stress', h.exe.sha256, 'k6.exe') : null,
+            url: null,
+            member: h.member,
+            archive: { sha256: h.zip.sha256, size: h.zip.size, url: h.url, mirrorPath: mirror ? path.join(mirror, 'w-scan-stress', h.zip.sha256, h.url.split('/').pop()) : null },
+            parts: null,
+            bundle: null,
+        }
+    }
+    let pickMissing = (m) => {
+        return {
+            name: m.name,
+            sha256: m.sha256,
+            size: m.size,
+            cachePath: m.cachePath,
+            mirrorPath: m.mirrorPath,
+            url: m.url,
+            member: m.member,
+            archive: m.archive ? { sha256: m.archive.sha256, size: m.archive.size, url: m.archive.url, mirrorPath: m.archive.mirrorPath } : null,
+            parts: m.parts,
+            bundle: m.bundle,
+        }
+    }
+    //noValueInMessage, 訊息不帶值: 含檔名; 不含任何sha256、`<大小> bytes`、清單之網址與給定之路徑
+    let noValueInMessage = (err, h, dirs) => {
+        assert.ok(err.message.includes('k6.exe'), err.message)
+        assert.ok(!/[0-9a-f]{64}/i.test(err.message), `message must not carry any sha256: ${err.message}`)
+        for (const v of [h.exe.sha256, h.zip.sha256, `${h.exe.size} bytes`, `${h.zip.size} bytes`, h.url, ...dirs]) {
+            assert.ok(!err.message.includes(v), `message must not carry ${v}: ${err.message}`)
+        }
+    }
+
+    it('T6: 離線且無快取無鏡像: E_OFFLINE_MISSING, 訊息含檔名而不含sha256與路徑, 應放位置在err.missing[], 不連網', async function () {
         const { ensureBins } = await mkRoot(synthA)
         const cacheDir = newDir('cache')
         const err = await catchErr(() => ensureBins({ cacheDir, fetch: fetchBan, mirror: '', offline: true }))
         assert.strictEqual(err && err.code, 'E_OFFLINE_MISSING', err && err.message)
-        const cachePath = path.join(cacheDir, hashExeA.sha256, 'k6.exe')
-        //規則(O3): 訊息須寫明缺哪個檔(名稱、sha256、大小)、應放到哪(快取或鏡像之完整路徑)
-        assert.ok(err.message.includes('k6.exe'), err.message)
-        assert.ok(err.message.includes(hashExeA.sha256), err.message)
-        assert.ok(err.message.includes(`${hashExeA.size} bytes`), err.message)
-        assert.ok(err.message.includes(cachePath), err.message)
-        assert.ok(err.message.includes(`<W_BIN_MIRROR>/w-scan-stress/${hashExeA.sha256}/k6.exe`), err.message)
-        assert.deepStrictEqual(err.missing.map((v) => [v.name, v.sha256, v.size, v.cachePath]), [['k6.exe', hashExeA.sha256, hashExeA.size, cachePath]])
+        const h = { exe: hashExeA, zip: hashZipA, member: memberA, url: urlA }
+        //規則(O3、V20): 訊息只寫缺哪個檔(名稱)與準備方法, 不含sha256、大小、路徑
+        noValueInMessage(err, h, [cacheDir, FDT])
+        assert.ok(err.message.includes('missing field of this error'), err.message) //準備方法: 細節見err.missing
+        //規則(O3、O5、T6): sha256、大小、應放到哪(cachePath; 無鏡像時mirrorPath為null)、來源(zip之archive與成員member)皆在err.missing[]
+        assert.ok(Array.isArray(err.missing))
+        assert.deepStrictEqual(err.missing.map(pickMissing), [wantMissing(h, cacheDir, null)])
+        assert.deepStrictEqual(err.missing[0].reasons, [])
         assert.deepStrictEqual(banned, [])
         assert.deepStrictEqual(cacheFiles(cacheDir), [])
     })
 
-    it('T6: 真清單(bin/manifest.json)經 src/ensureBins.mjs 離線缺檔時, 訊息列出真清單之 k6.exe、解出檔之 sha256 與大小', async function () {
-        //規則: 真清單須通過 fsEnsureBins 之 schema 檢核(否則為 E_MANIFEST); 缺檔訊息以真清單之值為準
+    it('T6: 設了鏡像而鏡像無檔時離線缺檔: mirrorPath(最終檔與zip)在err.missing[], 訊息不含鏡像路徑', async function () {
+        const { ensureBins } = await mkRoot(synthA)
+        const cacheDir = newDir('cache')
+        const mirror = newDir('mirror')
+        fs.mkdirSync(mirror, { recursive: true }) //指定而無任何檔之鏡像
+        const err = await catchErr(() => ensureBins({ cacheDir, fetch: fetchBan, mirror, offline: true }))
+        assert.strictEqual(err && err.code, 'E_OFFLINE_MISSING', err && err.message)
+        const h = { exe: hashExeA, zip: hashZipA, member: memberA, url: urlA }
+        noValueInMessage(err, h, [cacheDir, mirror])
+        assert.deepStrictEqual(err.missing.map(pickMissing), [wantMissing(h, cacheDir, mirror)])
+        assert.deepStrictEqual(err.missing[0].reasons, []) //鏡像無此檔(非拒用)故無說明
+        assert.deepStrictEqual(banned, [])
+        assert.deepStrictEqual(cacheFiles(cacheDir), [])
+    })
+
+    it('T6: 真清單(bin/manifest.json)經 src/ensureBins.mjs 離線缺檔時, err.missing[]為真清單之 k6.exe、解出檔之 sha256 與大小, 訊息不帶值', async function () {
+        //規則: 真清單須通過 fsEnsureBins 之 schema 檢核(否則為 E_MANIFEST); 缺檔之值以真清單為準
         const cacheDir = newDir('cache')
         const err = await catchErr(() => ensureBinsReal({ cacheDir, fetch: fetchBan, mirror: '', offline: true }))
         assert.strictEqual(err && err.code, 'E_OFFLINE_MISSING', err && err.message)
-        assert.ok(err.message.includes('k6.exe') && err.message.includes(rk.extract.sha256) && err.message.includes(`${rk.extract.size} bytes`), err.message)
-        assert.ok(err.message.includes(path.join(cacheDir, rk.extract.sha256, 'k6.exe')), err.message)
+        const h = { exe: rk.extract, zip: rk, member: rk.extract.member, url: rk.url }
+        noValueInMessage(err, h, [cacheDir])
+        assert.deepStrictEqual(err.missing.map(pickMissing), [wantMissing(h, cacheDir, null)])
         assert.deepStrictEqual(banned, [])
     })
 
@@ -424,7 +482,9 @@ describe('ensureBins: 取得 k6.exe(合成清單與本機伺服器)', function (
         const envRoot2 = newDir('envroot')
         const err = await withEnv({ W_BIN_CACHE: envRoot2, W_BIN_MIRROR: undefined, W_BIN_OFFLINE: '1' }, () => catchErr(() => ensureBins({ fetch: fetchBan })))
         assert.strictEqual(err && err.code, 'E_OFFLINE_MISSING', err && err.message)
-        assert.ok(err.message.includes(path.join(envRoot2, 'w-scan-stress', hashExeA.sha256, 'k6.exe')), err.message)
+        //應放位置在err.missing[].cachePath(V20: 不在訊息): 由W_BIN_CACHE衍生之<W_BIN_CACHE>/<套件>/<sha256>/<name>
+        assert.deepStrictEqual(err.missing.map((v) => [v.name, v.cachePath]), [['k6.exe', path.join(envRoot2, 'w-scan-stress', hashExeA.sha256, 'k6.exe')]])
+        assert.ok(!err.message.includes(envRoot2), err.message)
     })
 
 })
@@ -572,7 +632,10 @@ describe('WScanStress: 以 ensureBins 取得 k6.exe(整個 src/ 之副本＋合�
             },
         })))
         assert.strictEqual(err && err.code, 'E_OFFLINE_MISSING', err && err.message)
-        assert.ok(err.message.includes(hashExe.sha256), err.message)
+        //缺哪個檔、應放何處在err.missing[](V20: 訊息不帶sha256與路徑)
+        assert.deepStrictEqual(err.missing.map((v) => [v.name, v.sha256, v.size, v.cachePath]), [['k6.exe', hashExe.sha256, hashExe.size, path.join(cacheRoot, 'w-scan-stress', hashExe.sha256, 'k6.exe')]])
+        assert.ok(err.message.includes('k6.exe'), err.message)
+        assert.ok(!err.message.includes(hashExe.sha256) && !err.message.includes(cacheRoot), err.message)
         assert.strictEqual(called, false)
         assert.ok(!fs.existsSync(fdOut))
         assert.deepStrictEqual(calls.spawn.filter((v) => isK6(v.cmd)), [])

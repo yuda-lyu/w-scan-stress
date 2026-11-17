@@ -190,7 +190,7 @@ describe('src/ 與 package.json: 不自寫下載、不於安裝時下載', funct
         const c = fs.readFileSync('README.md', 'utf8')
         assert.ok(c.includes('## 外部執行檔') || c.includes('#### 外部執行檔'))
         const sec = c.slice(c.search(/#+ 外部執行檔/))
-        for (const k of ['W_BIN_CACHE', 'W_BIN_MIRROR', 'W_BIN_OFFLINE', 'k6.exe', 'ensureBins', 'bin/manifest.json', 'genBinManifest', 'E_OFFLINE_MISSING']) {
+        for (const k of ['W_BIN_CACHE', 'W_BIN_MIRROR', 'W_BIN_OFFLINE', 'k6.exe', 'ensureBins', 'bin/manifest.json', 'genBinManifest', 'E_OFFLINE_MISSING', 'err.missing', 'cachePath', 'mirrorPath']) { //O5(2026-11-18): 離線缺檔之放置位置自err.missing[]之cachePath、mirrorPath讀取
             assert.ok(sec.includes(k), `README section lacks ${k}`)
         }
         assert.ok(/#+ Breaking changes/.test(c))

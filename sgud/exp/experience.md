@@ -26,6 +26,7 @@
 - **攔截 `child_process`**:`createRequire(import.meta.url)('node:child_process')` 取得 CJS 物件,改寫其 `spawn`/`spawnSync` 後呼叫 `syncBuiltinESMExports()`,已 `import { spawn } from 'node:child_process'` 之模組即看到新函數;只對 `k6.exe` 回假結果,其餘(如 wsemi 的 tar 解壓)照常呼叫原函數;`after` 必須還原並再同步.
 - **`genBinManifest` 取 zip 之核對**:sha256 取自廠商 `k6-<tag>-checksums.txt`,大小取自 GitHub API 之資產 `size`,API 另附 `digest`(`sha256:…`)時須一致;三者交 `fsDownloadFileVerify` 下載校驗;解出的 `k6.exe` 先 `tar -tf` 列成員(須恰有一個檔名為 `k6.exe`)再 `tar -xf -- <成員>`.k6 v2.3.0 的 zip 成員為 `k6-v2.3.0-windows-amd64/k6.exe`(解出 67116752 位元組).
 - **npm 包檢查只擋外部執行檔類,不擋開發檔**(2026-11-02,dspec〈自有套件之npm發布範圍〉原則 2):`npm pack --dry-run --json` 之斷言「不得入包」只列 exe/dll/node/msi/zip/7z/gz/tgz、`bin/` 除 `manifest.json`、`CLAUDE*.md`、`tmp/`、`test/_tmp/`、`.env`;`sgud/`、`docs/`、`test/`、`toolg/` 隨包,不得斷言其不在(舊斷言 `sgud/` 不在包內即因此紅).大小上限若有,只計 `src/`+`dist/`+`bin/`.變異驗證要在會入包之位置(`src/`、`dist/`)放假 `.dll`/`.exe`,而非 `bin/`(`bin/` 本就被 `/bin/*` 擋);還原 `.npmignore` 後以 `git status` 確認回到原狀.
+- **wsemi 1.9.64 起 `E_OFFLINE_MISSING` 訊息不帶值(V20)**(2026-11-18):離線缺檔之 sha256、大小、`cachePath`/`mirrorPath`、來源網址只在 `err.missing[]`(zip 內解出者另有 `member`、`archive`);`api-ensureBins` 之 T6 與環境變數、主函數接線案改以 `deepStrictEqual` 比對 `missing` 全欄位,訊息改驗「含檔名、不含任何 64 位十六進位字串與路徑」;變異(大小加 1、`cachePath` 改用 zip 之 sha256)使三案轉紅.套件端無字串包裝(`src/ensureBins.mjs` 原樣轉呼叫),故不改 `src/`.
 - **UMD 打包驗證不可覆寫 `dist/`**:`toolg/gDistRollup.mjs` 輸出固定 `./dist`;驗證時於 `tmp/` 放一份以 `fdTar` 改指 `./tmp/…` 的副本執行,並以 `require` 該檔檢查預設匯出與 `.ensureBins`.
 
 ## Windows 行為

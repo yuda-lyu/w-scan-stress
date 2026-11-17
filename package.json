@@ -1,6 +1,6 @@
 {
   "name": "w-scan-stress",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "main": "dist/w-scan-stress.umd.js",
   "dependencies": {
     "w-playwright": "^1.0.1",
