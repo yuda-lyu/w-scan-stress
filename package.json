@@ -1,13 +1,13 @@
 {
   "name": "w-scan-stress",
-  "version": "1.0.32",
+  "version": "1.0.33",
   "main": "dist/w-scan-stress.umd.js",
   "dependencies": {
-    "w-playwright": "^1.0.1",
-    "wsemi": "^1.9.70"
+    "w-playwright": "^1.0.2",
+    "wsemi": "^1.9.71"
   },
   "devDependencies": {
-    "w-package-tools": "^1.1.28"
+    "w-package-tools": "^1.1.29"
   },
   "scripts": {
     "test": "mocha --parallel \"test/*.test.mjs\" --timeout 180000",
