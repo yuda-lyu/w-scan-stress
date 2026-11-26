@@ -1,10 +1,10 @@
 {
   "name": "w-scan-stress",
-  "version": "1.0.41",
+  "version": "1.0.42",
   "main": "dist/w-scan-stress.umd.js",
   "dependencies": {
     "w-playwright": "^1.0.6",
-    "wsemi": "^1.9.78"
+    "wsemi": "^1.9.79"
   },
   "devDependencies": {
     "w-package-tools": "^1.1.31"
